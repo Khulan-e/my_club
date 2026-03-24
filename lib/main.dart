@@ -1,26 +1,31 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
+import 'utils/theme_and_constants.dart';
+import 'providers/auth_provider.dart';
 
-// Auth screens
+// Auth
 import 'screens/auth/auth_screens.dart';
 
-// Student screens — зөвхөн barrel file
-import 'screens/student/student_screens.dart';
+// Student — тусдаа файл бүр
+import 'screens/student/home_screen.dart';
+import 'screens/student/club_detail_screen.dart';
+import 'screens/student/my_profile_screen.dart';
+import 'screens/student/my_clubs_screen.dart';
+import 'screens/student/my_requests_screen.dart';
+import 'screens/student/my_hours_screen.dart';
+import 'screens/student/my_reviews_screen.dart';
 
-// Admin screen
+// Admin
 import 'screens/admin/admin_dashboard_screen.dart';
-
-// Providers & Theme
-import 'providers/auth_provider.dart';
-import 'utils/theme_and_constants.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Supabase.initialize(
-    url:     'https://vmglqlkuuijfilpfnves.supabase.co', // ← өөрийн URL
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZtZ2xxbGt1dWlqZmlscGZudmVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNTQ4NzcsImV4cCI6MjA4OTgzMDg3N30.Ngc0HfMq7075m-e_N8mKWdLhi2mTU2gT2zxbXBmsLrU',                        // ← өөрийн anon key
+    url:     'https://vmglqlkuuijfilpfnves.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZtZ2xxbGt1dWlqZmlscGZudmVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNTQ4NzcsImV4cCI6MjA4OTgzMDg3N30.Ngc0HfMq7075m-e_N8mKWdLhi2mTU2gT2zxbXBmsLrU',
   );
 
   runApp(const ClubHubApp());
@@ -41,19 +46,19 @@ class ClubHubApp extends StatelessWidget {
         theme: AppTheme.light,
         initialRoute: '/login',
         routes: {
-          // ── Auth ──────────────────────────────────────────
+          // Auth
           '/login':           (_) => const LoginScreen(),
           '/register':        (_) => const RegisterScreen(),
           '/forgot-password': (_) => const ForgotPasswordScreen(),
           '/change-password': (_) => const ChangePasswordScreen(),
-          // ── Student ───────────────────────────────────────
+          // Student
           '/home':            (_) => const HomeScreen(),
           '/profile':         (_) => const MyProfileScreen(),
           '/my-clubs':        (_) => const MyClubsScreen(),
           '/my-requests':     (_) => const MyRequestsScreen(),
           '/my-hours':        (_) => const MyHoursScreen(),
           '/my-reviews':      (_) => const MyReviewsScreen(),
-          // ── Admin ─────────────────────────────────────────
+          // Admin
           '/admin':           (_) => const AdminDashboardScreen(),
         },
         onGenerateRoute: (settings) {

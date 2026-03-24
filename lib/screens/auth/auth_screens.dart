@@ -256,7 +256,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 20),
                   const SectionHeader(title: 'Сургалтын мэдээлэл'),
                   DropdownButtonFormField<String>(
-                    value: _selectedSchool,
+                    initialValue: _selectedSchool,
                     decoration: const InputDecoration(
                       labelText: 'Сургууль',
                       prefixIcon: Icon(Icons.school_outlined, size: 20),

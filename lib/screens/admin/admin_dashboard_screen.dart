@@ -64,11 +64,13 @@ class _DashboardTabState extends State<_DashboardTab> {
       _adminService.getDashboardStats(),
       _adminService.getTopClubs(),
     ]);
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _stats    = results[0] as Map<String, dynamic>;
       _topClubs = results[1] as List<Map<String, dynamic>>;
       _loading  = false;
     });
+    }
   }
 
   @override
@@ -402,7 +404,7 @@ class _ClubsTabState extends State<_ClubsTab> {
                 AppTextField(controller: nameCtrl, label: 'Клубын нэр'),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
-                  value: cat,
+                  initialValue: cat,
                   decoration: const InputDecoration(labelText: 'Ангилал'),
                   items: const [
                     DropdownMenuItem(value: 'professional', child: Text('Мэргэжлийн')),
@@ -503,7 +505,11 @@ class _HoursTabState extends State<_HoursTab> {
                         subtitle: Text(u['student_code'], style: const TextStyle(fontSize: 11)),
                         value: selected.contains(uid),
                         onChanged: (v) => setS(() {
-                          if (v!) selected.add(uid); else selected.remove(uid);
+                          if (v!) {
+                            selected.add(uid);
+                          } else {
+                            selected.remove(uid);
+                          }
                         }),
                       );
                     },
