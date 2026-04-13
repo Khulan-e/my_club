@@ -1,8 +1,9 @@
-// lib/screens/student/home_screen.dart
+// lib/screens/student/student_screen.dart
 // ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../providers/theme_provider.dart';
+import '../../models/models.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/theme_and_constants.dart';
@@ -17,62 +18,139 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
-  final _pages = const [
-    _DashboardTab(),
-    _MyClubsTab(),
-    _AllClubsTab(),
-    _ProfileTab(),
+  final _pages = [
+    const _DashboardTab(),
+    const _MyClubsTab(),
+    const _AllClubsTab(),
+    const _ProfileTab(),
   ];
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('ClubHub — ХУИС'),
-        actions: [
-          if (auth.isAdmin)
-            IconButton(
-              icon: const Icon(Icons.admin_panel_settings_outlined),
-              tooltip: 'Админ самбар',
-              onPressed: () => Navigator.pushNamed(context, '/admin'),
+    final c    = context.watch<ThemeProvider>().colors;
+
+    return Container(
+      decoration: BoxDecoration(gradient: c.bgGradient),
+      child: Scaffold(
+        extendBody: true,
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: const Text('ClubHub — ХУИС'),
+          actions: [
+            if (auth.isClubAdmin)
+              IconButton(
+                icon: const Icon(Icons.admin_panel_settings_outlined),
+                tooltip: 'Клубын админ самбар',
+                onPressed: () => Navigator.pushNamed(context, '/admin'),
+              ),
+            if (auth.isSuperAdmin)
+              IconButton(
+                icon: const Icon(Icons.shield_outlined),
+                tooltip: 'Супер админ самбар',
+                onPressed: () => Navigator.pushNamed(context, '/super-admin'),
+              ),
+          ],
+        ),
+        body: IndexedStack(index: _currentIndex, children: _pages),
+
+        // ── Pill Bottom Nav ──────────────────────────────────
+        bottomNavigationBar: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          child: Container(
+            height: 64,
+            decoration: BoxDecoration(
+              color: c.bgCard,
+              borderRadius: BorderRadius.circular(40),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-        ],
-      ),
-      body: IndexedStack(index: _currentIndex, children: _pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (i) => setState(() => _currentIndex = i),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Нүүр',
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _NavItem(icon: Icons.home_outlined,    selectedIcon: Icons.home_rounded,    index: 0, currentIndex: _currentIndex, colors: c, onTap: (i) => setState(() => _currentIndex = i)),
+                _NavItem(icon: Icons.groups_outlined,  selectedIcon: Icons.groups_rounded,  index: 1, currentIndex: _currentIndex, colors: c, onTap: (i) => setState(() => _currentIndex = i)),
+                _NavItem(icon: Icons.explore_outlined, selectedIcon: Icons.explore_rounded, index: 2, currentIndex: _currentIndex, colors: c, onTap: (i) => setState(() => _currentIndex = i)),
+                _NavItem(icon: Icons.person_outline,   selectedIcon: Icons.person_rounded,  index: 3, currentIndex: _currentIndex, colors: c, onTap: (i) => setState(() => _currentIndex = i)),
+              ],
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.groups_outlined),
-            selectedIcon: Icon(Icons.groups),
-            label: 'Миний клубүүд',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore),
-            label: 'Бүх клубүүд',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Профайл',
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-// ───────────────────────────────────────
+// ── Nav Item — primary тойрог + цагаан icon ──────────────────
+class _NavItem extends StatelessWidget {
+  final IconData icon;
+  final IconData selectedIcon;
+  final int index;
+  final int currentIndex;
+  final ThemeColors colors;
+  final ValueChanged<int> onTap;
+
+  const _NavItem({
+    required this.icon,
+    required this.selectedIcon,
+    required this.index,
+    required this.currentIndex,
+    required this.colors,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelected = index == currentIndex;
+    return GestureDetector(
+      onTap: () => onTap(index),
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 56,
+        height: 56,
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: isSelected ? 48 : 36,
+            height: isSelected ? 48 : 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isSelected ? colors.primary : Colors.transparent,
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: colors.primary.withOpacity(0.45),
+                        blurRadius: 14,
+                        offset: const Offset(0, 5),
+                      ),
+                      BoxShadow(
+                        color: colors.primary.withOpacity(0.15),
+                        blurRadius: 24,
+                        spreadRadius: 4,
+                      ),
+                    ]
+                  : [],
+            ),
+            child: Icon(
+              isSelected ? selectedIcon : icon,
+              color: isSelected ? Colors.white : colors.textMuted,
+              size: isSelected ? 24 : 21,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
 // TAB 1: Нүүр (Dashboard)
-// ───────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
 class _DashboardTab extends StatefulWidget {
   const _DashboardTab();
   @override
@@ -87,15 +165,11 @@ class _DashboardTabState extends State<_DashboardTab> {
   bool _loading = true;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
     final uid = supabase.auth.currentUser?.id;
     if (uid == null) return;
-    // Future.wait-д өөр төрлийн Future хольж болохгүй — тусдаа дуудна
     final hours = await _hoursService.getTotalHours(uid);
     final clubs = await supabase
         .from('club_memberships')
@@ -103,57 +177,75 @@ class _DashboardTabState extends State<_DashboardTab> {
         .eq('user_id', uid)
         .eq('status', 'approved')
         .limit(3);
-    if (mounted) setState(() {
-      _totalHours = hours;
-      _myClubs    = List<Map<String, dynamic>>.from(clubs as List);
-      _loading    = false;
-    });
+    if (mounted) {
+      setState(() {
+        _totalHours = hours;
+        _myClubs    = List<Map<String, dynamic>>.from(clubs as List);
+        _loading    = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final auth    = context.watch<AuthProvider>();
+    final c       = context.watch<ThemeProvider>().colors;
     final name    = (auth.profile?['full_name'] ?? '').toString();
     final initial = name.isNotEmpty ? name[0] : '?';
 
     return RefreshIndicator(
       onRefresh: _load,
+      color: c.primary,
+      backgroundColor: c.bgCard,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Мэндчилгээ ──────────────────────────────────
+            // ── Мэндчилгээ ───────────────────────────────────
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(16),
+                gradient: c.headerGradient,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: c.primary.withOpacity(0.2)),
+                boxShadow: [BoxShadow(color: c.primary.withOpacity(0.15), blurRadius: 20, offset: const Offset(0, 8))],
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Colors.white.withOpacity(0.2),
-                    child: Text(initial,
-                      style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.w700,
-                        color: Colors.white)),
+                  Container(
+                    width: 52, height: 52,
+                    decoration: BoxDecoration(
+                      gradient: c.accentGradient,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [BoxShadow(color: c.primary.withOpacity(0.4), blurRadius: 12)],
+                    ),
+                    child: Center(
+                      child: Text(initial,
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white)),
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Сайн байна уу,',
-                          style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13)),
+                        Text('Сайн байна уу,', style: TextStyle(color: c.textSecondary, fontSize: 13)),
                         Text(name,
-                          style: const TextStyle(
-                            color: Colors.white, fontSize: 18,
-                            fontWeight: FontWeight.w700),
+                          style: TextStyle(color: c.textPrimary, fontSize: 20, fontWeight: FontWeight.w700),
                           overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: c.primary.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(auth.userRole.label,
+                            style: TextStyle(color: c.primary, fontSize: 11, fontWeight: FontWeight.w500)),
+                        ),
                       ],
                     ),
                   ),
@@ -162,55 +254,58 @@ class _DashboardTabState extends State<_DashboardTab> {
             ),
             const SizedBox(height: 20),
 
-            // ── Сайн дурын цаг ──────────────────────────────
-            BorderedCard(
-              padding: const EdgeInsets.all(16),
+            // ── Сайн дурын цаг ────────────────────────────────
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                gradient: c.accentGradient,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [BoxShadow(color: c.primary.withOpacity(0.3), blurRadius: 16, offset: const Offset(0, 6))],
+              ),
               child: Row(
                 children: [
                   Container(
-                    width: 48, height: 48,
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.tealLight,
+                      color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.volunteer_activism_rounded,
-                      color: AppColors.teal, size: 24),
+                    child: const Icon(Icons.volunteer_activism_rounded, color: Colors.white, size: 24),
                   ),
                   const SizedBox(width: 14),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Нийт сайн дурын цаг',
-                        style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                      const Text('Нийт сайн дурын цаг', style: TextStyle(fontSize: 12, color: Colors.white70)),
                       Text(_loading ? '...' : '${_totalHours.toStringAsFixed(1)} цаг',
-                        style: const TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.w700,
-                          color: AppColors.teal)),
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white)),
                     ],
                   ),
                   const Spacer(),
-                  TextButton(
-                    onPressed: () => Navigator.pushNamed(context, '/my-hours'),
-                    child: const Text('Дэлгэрэнгүй'),
+                  Container(
+                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
+                      onPressed: () => Navigator.pushNamed(context, '/my-hours'),
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
-            // ── Миний клубүүд (товч) ─────────────────────────
+            // ── Миний клубүүд ────────────────────────────────
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Миний клубүүд',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                Text('Миний клубүүд',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: c.textPrimary)),
                 TextButton(
                   onPressed: () {
-                    // 2-р tab руу шилжинэ
                     final state = context.findAncestorStateOfType<_HomeScreenState>();
                     state?.setState(() => state._currentIndex = 1);
                   },
-                  child: const Text('Бүгд'),
+                  child: const Text('Бүгд', style: TextStyle(fontSize: 12)),
                 ),
               ],
             ),
@@ -219,13 +314,16 @@ class _DashboardTabState extends State<_DashboardTab> {
             if (_loading)
               const LoadingView()
             else if (_myClubs.isEmpty)
-              BorderedCard(
-                child: const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('Одоогоор элссэн клуб байхгүй байна',
-                      style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                  ),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: c.bgCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: c.border.withOpacity(0.3)),
+                ),
+                child: Center(
+                  child: Text('Одоогоор элссэн клуб байхгүй байна',
+                    style: TextStyle(color: c.textMuted, fontSize: 13)),
                 ),
               )
             else
@@ -233,26 +331,26 @@ class _DashboardTabState extends State<_DashboardTab> {
                 final club = m['clubs'] as Map<String, dynamic>;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: BorderedCard(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: c.bgCard,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: c.border.withOpacity(0.3)),
+                    ),
                     child: Row(
                       children: [
                         Container(
-                          width: 36, height: 36,
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryLight,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(Icons.groups_rounded,
-                            color: AppColors.primary, size: 18),
+                          width: 38, height: 38,
+                          decoration: BoxDecoration(gradient: c.accentGradient, borderRadius: BorderRadius.circular(10)),
+                          child: const Icon(Icons.groups_rounded, color: Colors.white, size: 18),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 12),
                         Expanded(
-                          child: Text(club['name'],
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w500, fontSize: 14)),
+                          child: Text(club['name'] ?? '',
+                            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14, color: c.textPrimary)),
                         ),
-                        CategoryBadge(category: club['category']),
+                        CategoryBadge(category: club['category'] ?? ''),
                       ],
                     ),
                   ),
@@ -262,26 +360,21 @@ class _DashboardTabState extends State<_DashboardTab> {
             const SizedBox(height: 20),
 
             // ── Бүх клубүүд товч ────────────────────────────
-            const Text('Клубүүд',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            Text('Клубүүд', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: c.textPrimary)),
             const SizedBox(height: 8),
-            BorderedCard(
-              padding: EdgeInsets.zero,
+            Container(
+              decoration: BoxDecoration(
+                color: c.bgCard,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: c.border.withOpacity(0.3)),
+              ),
               child: ListTile(
-                leading: Container(
-                  width: 40, height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.explore_rounded,
-                    color: AppColors.primary, size: 20),
-                ),
-                title: const Text('Бүх клубүүд үзэх',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text('ХУИС-ийн 20 клубын мэдээлэл',
-                  style: TextStyle(fontSize: 12)),
-                trailing: const Icon(Icons.chevron_right),
+                leading: GlowIcon(icon: Icons.explore_rounded, color: c.primary, size: 20),
+                title: Text('Бүх клубүүд үзэх',
+                  style: TextStyle(fontWeight: FontWeight.w600, color: c.textPrimary)),
+                subtitle: Text('ХУИС-ийн 20 клубын мэдээлэл',
+                  style: TextStyle(fontSize: 12, color: c.textSecondary)),
+                trailing: Icon(Icons.chevron_right, color: c.textMuted),
                 onTap: () {
                   final state = context.findAncestorStateOfType<_HomeScreenState>();
                   state?.setState(() => state._currentIndex = 2);
@@ -295,9 +388,9 @@ class _DashboardTabState extends State<_DashboardTab> {
   }
 }
 
-// ───────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
 // TAB 2: Миний клубүүд
-// ───────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
 class _MyClubsTab extends StatefulWidget {
   const _MyClubsTab();
   @override
@@ -325,8 +418,10 @@ class _MyClubsTabState extends State<_MyClubsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.watch<ThemeProvider>().colors;
     return RefreshIndicator(
       onRefresh: _load,
+      color: c.primary,
       child: _loading
           ? const LoadingView()
           : _memberships.isEmpty
@@ -334,31 +429,30 @@ class _MyClubsTabState extends State<_MyClubsTab> {
                   message: 'Элссэн клуб байхгүй байна.\nКлубүүд tab-аас элсэх хүсэлт илгээгээрэй.',
                   icon: Icons.groups_outlined)
               : ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                   itemCount: _memberships.length,
                   itemBuilder: (_, i) {
                     final m    = _memberships[i];
                     final club = m['clubs'] as Map<String, dynamic>;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
-                      child: BorderedCard(
-                        padding: EdgeInsets.zero,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: c.bgCard,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: c.border.withOpacity(0.3)),
+                        ),
                         child: ListTile(
                           leading: Container(
                             width: 44, height: 44,
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryLight,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(Icons.groups_rounded,
-                              color: AppColors.primary, size: 22),
+                            decoration: BoxDecoration(gradient: c.accentGradient, borderRadius: BorderRadius.circular(12)),
+                            child: const Icon(Icons.groups_rounded, color: Colors.white, size: 22),
                           ),
-                          title: Text(club['name'],
-                            style: const TextStyle(fontWeight: FontWeight.w600)),
-                          subtitle: CategoryBadge(category: club['category']),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => Navigator.pushNamed(context, '/club-detail',
-                            arguments: club['id']),
+                          title: Text(club['name'] ?? '',
+                            style: TextStyle(fontWeight: FontWeight.w600, color: c.textPrimary)),
+                          subtitle: CategoryBadge(category: club['category'] ?? ''),
+                          trailing: Icon(Icons.chevron_right, color: c.textMuted),
+                          onTap: () => Navigator.pushNamed(context, '/club-detail', arguments: club['id']),
                         ),
                       ),
                     );
@@ -368,9 +462,9 @@ class _MyClubsTabState extends State<_MyClubsTab> {
   }
 }
 
-// ───────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
 // TAB 3: Бүх клубүүд
-// ───────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
 class _AllClubsTab extends StatefulWidget {
   const _AllClubsTab();
   @override
@@ -402,76 +496,62 @@ class _AllClubsTabState extends State<_AllClubsTab> {
     setState(() => _loading = true);
     final clubs = _searchQuery.isNotEmpty
         ? await _clubService.searchClubs(_searchQuery)
-        : await _clubService.getClubs(
-            category: _selectedCat == 'all' ? null : _selectedCat);
+        : await _clubService.getClubs(category: _selectedCat == 'all' ? null : _selectedCat);
     if (mounted) setState(() { _clubs = clubs; _loading = false; });
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = context.watch<ThemeProvider>().colors;
     return Column(
       children: [
-        // Search
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: TextField(
             controller: _searchCtrl,
+            style: TextStyle(color: c.textPrimary),
             decoration: InputDecoration(
               hintText: 'Клуб хайх...',
-              prefixIcon: const Icon(Icons.search, size: 20),
+              prefixIcon: Icon(Icons.search, size: 20, color: c.textMuted),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear, size: 18),
-                      onPressed: () {
-                        _searchCtrl.clear();
-                        setState(() => _searchQuery = '');
-                        _load();
-                      })
+                      icon: Icon(Icons.clear, size: 18, color: c.textMuted),
+                      onPressed: () { _searchCtrl.clear(); setState(() => _searchQuery = ''); _load(); })
                   : null,
             ),
             onChanged: (v) { setState(() => _searchQuery = v); _load(); },
           ),
         ),
-        // Category chips
         SizedBox(
-          height: 44,
+          height: 48,
           child: ListView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            children: _cats.map((c) => Padding(
+            children: _cats.map((cat) => Padding(
               padding: const EdgeInsets.only(right: 6, top: 6, bottom: 6),
               child: ChoiceChip(
-                label: Text(c['label']!),
-                selected: _selectedCat == c['key'],
-                onSelected: (_) {
-                  setState(() => _selectedCat = c['key']!);
-                  _load();
-                },
+                label: Text(cat['label']!),
+                selected: _selectedCat == cat['key'],
+                onSelected: (_) { setState(() => _selectedCat = cat['key']!); _load(); },
               ),
             )).toList(),
           ),
         ),
-        // Grid
         Expanded(
           child: _loading
               ? const LoadingView()
               : _clubs.isEmpty
-                  ? const EmptyState(
-                      message: 'Клуб олдсонгүй',
-                      icon: Icons.search_off_rounded)
+                  ? const EmptyState(message: 'Клуб олдсонгүй', icon: Icons.search_off_rounded)
                   : GridView.builder(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
                       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 320,
-                        childAspectRatio: 1.05,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
+                        maxCrossAxisExtent: 320, childAspectRatio: 1.05,
+                        crossAxisSpacing: 10, mainAxisSpacing: 10,
                       ),
                       itemCount: _clubs.length,
                       itemBuilder: (_, i) => ClubCard(
                         club: _clubs[i],
-                        onTap: () => Navigator.pushNamed(context, '/club-detail',
-                          arguments: _clubs[i]['id']),
+                        onTap: () => Navigator.pushNamed(context, '/club-detail', arguments: _clubs[i]['id']),
                       ),
                     ),
         ),
@@ -480,96 +560,246 @@ class _AllClubsTabState extends State<_AllClubsTab> {
   }
 }
 
-// ───────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
 // TAB 4: Профайл
-// ───────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
 class _ProfileTab extends StatelessWidget {
   const _ProfileTab();
 
   @override
   Widget build(BuildContext context) {
     final auth    = context.watch<AuthProvider>();
+    final tp      = context.watch<ThemeProvider>();
+    final c       = tp.colors;
     final profile = auth.profile;
     final name    = profile?['full_name'] ?? '';
     final initial = name.isNotEmpty ? name[0] : '?';
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       child: Column(
         children: [
-          // Avatar + нэр
           const SizedBox(height: 12),
-          CircleAvatar(
-            radius: 40,
-            backgroundColor: AppColors.primaryLight,
-            child: Text(initial,
-              style: const TextStyle(
-                fontSize: 32, color: AppColors.primary,
-                fontWeight: FontWeight.w700)),
-          ),
-          const SizedBox(height: 12),
-          Text(name,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-          Text(profile?['email'] ?? '',
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
-          const SizedBox(height: 4),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
             decoration: BoxDecoration(
-              color: AppColors.primaryLight,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: c.primary.withOpacity(0.3), blurRadius: 20, spreadRadius: 2)],
+            ),
+            child: CircleAvatar(
+              radius: 44,
+              backgroundColor: c.primaryLight,
+              child: Container(
+                width: 80, height: 80,
+                decoration: BoxDecoration(shape: BoxShape.circle, gradient: c.accentGradient),
+                child: Center(
+                  child: Text(initial,
+                    style: const TextStyle(fontSize: 34, color: Colors.white, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(name, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: c.textPrimary)),
+          const SizedBox(height: 4),
+          Text(profile?['email'] ?? '', style: TextStyle(color: c.textSecondary, fontSize: 13)),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: c.primary.withOpacity(0.15),
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: c.primary.withOpacity(0.3)),
             ),
             child: Text(profile?['student_code'] ?? '',
-              style: const TextStyle(
-                fontSize: 12, color: AppColors.primary,
-                fontWeight: FontWeight.w500)),
+              style: TextStyle(fontSize: 12, color: c.primary, fontWeight: FontWeight.w600)),
           ),
-          const SizedBox(height: 24),
-
-          // Меню
-          _menuItem(context, Icons.person_outline, 'Профайл засах',
-            () => Navigator.pushNamed(context, '/profile')),
-          _menuItem(context, Icons.volunteer_activism_outlined, 'Сайн дурын цаг',
-            () => Navigator.pushNamed(context, '/my-hours')),
-          _menuItem(context, Icons.send_outlined, 'Элсэх хүсэлтүүд',
-            () => Navigator.pushNamed(context, '/my-requests')),
-          _menuItem(context, Icons.star_outline_rounded, 'Миний үнэлгээ',
-            () => Navigator.pushNamed(context, '/my-reviews')),
-          _menuItem(context, Icons.lock_outline, 'Нууц үг солих',
-            () => Navigator.pushNamed(context, '/change-password')),
-
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: _roleBadgeColor(auth.userRole, c).withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _roleBadgeColor(auth.userRole, c).withOpacity(0.3)),
+            ),
+            child: Text(auth.userRole.label,
+              style: TextStyle(fontSize: 11, color: _roleBadgeColor(auth.userRole, c), fontWeight: FontWeight.w600)),
+          ),
+          const SizedBox(height: 28),
+          _menuItem(c, context, Icons.person_outline,              'Профайл засах',     () => Navigator.pushNamed(context, '/profile')),
+          _menuItem(c, context, Icons.volunteer_activism_outlined, 'Сайн дурын цаг',    () => Navigator.pushNamed(context, '/my-hours')),
+          _menuItem(c, context, Icons.send_outlined,               'Элсэх хүсэлтүүд',   () => Navigator.pushNamed(context, '/my-requests')),
+          _menuItem(c, context, Icons.star_outline_rounded,        'Миний үнэлгээ',      () => Navigator.pushNamed(context, '/my-reviews')),
+          _menuItem(c, context, Icons.lock_outline,                'Нууц үг солих',      () => Navigator.pushNamed(context, '/change-password')),
+          _menuItem(c, context, Icons.palette_outlined,            'Загвар солих',       () => _showThemePicker(context, tp)),
+          if (auth.isClubAdmin)
+            _menuItem(c, context, Icons.admin_panel_settings_outlined, 'Клубын админ самбар',
+              () => Navigator.pushNamed(context, '/admin'), color: c.cyan),
+          if (auth.isSuperAdmin)
+            _menuItem(c, context, Icons.shield_outlined, 'Супер админ самбар',
+              () => Navigator.pushNamed(context, '/super-admin'), color: c.cyan),
           const SizedBox(height: 8),
-          const Divider(),
+          Divider(color: c.border.withOpacity(0.3)),
           const SizedBox(height: 8),
-
-          _menuItem(context, Icons.logout, 'Гарах', () async {
+          _menuItem(c, context, Icons.logout, 'Гарах', () async {
             await auth.logout();
-            if (context.mounted) {
-              Navigator.pushReplacementNamed(context, '/login');
-            }
-          }, color: Colors.red),
+            if (context.mounted) Navigator.pushReplacementNamed(context, '/login');
+          }, color: c.coral),
         ],
       ),
     );
   }
 
-  Widget _menuItem(BuildContext context, IconData icon, String label,
+  static Color _roleBadgeColor(UserRole role, ThemeColors c) {
+    switch (role) {
+      case UserRole.superAdmin: return c.coral;
+      case UserRole.clubAdmin:  return c.teal;
+      case UserRole.student:    return c.primary;
+    }
+  }
+
+  Widget _menuItem(ThemeColors c, BuildContext context, IconData icon, String label,
       VoidCallback onTap, {Color? color}) {
+    final itemColor = color ?? c.primary;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: BorderedCard(
-        padding: EdgeInsets.zero,
+      child: Container(
+        decoration: BoxDecoration(
+          color: c.bgCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: c.border.withOpacity(0.3)),
+        ),
         child: ListTile(
-          leading: Icon(icon, color: color ?? AppColors.primary, size: 22),
+          leading: Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(color: itemColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: itemColor, size: 20),
+          ),
           title: Text(label,
-            style: TextStyle(
-              fontSize: 14,
-              color: color ?? null,
-              fontWeight: FontWeight.w500)),
-          trailing: color == null
-              ? const Icon(Icons.chevron_right, color: AppColors.textMuted)
+            style: TextStyle(fontSize: 14, color: color != null ? color : c.textPrimary, fontWeight: FontWeight.w500)),
+          trailing: (color == null || color == c.cyan)
+              ? Icon(Icons.chevron_right, color: c.textMuted, size: 18)
               : null,
           onTap: onTap,
+        ),
+      ),
+    );
+  }
+
+  void _showThemePicker(BuildContext context, ThemeProvider tp) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => ChangeNotifierProvider.value(
+        value: tp,
+        child: const _ThemePickerSheet(),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// THEME PICKER SHEET
+// ─────────────────────────────────────────────────────────────
+class _ThemePickerSheet extends StatelessWidget {
+  const _ThemePickerSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final tp      = context.watch<ThemeProvider>();
+    final current = tp.mode;
+    final c       = tp.colors;
+    final bottom  = MediaQuery.of(context).viewInsets.bottom;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 8, 20, bottom + 32),
+      color: c.bgCard,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36, height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(color: c.border, borderRadius: BorderRadius.circular(2)),
+          ),
+          Row(
+            children: [
+              Icon(Icons.palette_outlined, color: c.primary, size: 20),
+              const SizedBox(width: 8),
+              Text('Өнгөний загвар',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...AppThemeMode.values.map((mode) {
+            final isSelected = mode == current;
+            final mc         = ThemePalette.of(mode);
+            return _ThemeOption(
+              mode: mode, colors: mc, isSelected: isSelected,
+              onTap: () { tp.setTheme(mode); Navigator.pop(context); },
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _ThemeOption extends StatelessWidget {
+  final AppThemeMode mode;
+  final ThemeColors  colors;
+  final bool         isSelected;
+  final VoidCallback onTap;
+
+  const _ThemeOption({required this.mode, required this.colors, required this.isSelected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? mode.accentColor.withOpacity(0.1) : colors.bgCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? mode.accentColor.withOpacity(0.6) : colors.border.withOpacity(0.3),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: colors.accentGradient,
+                border: Border.all(color: mode.accentColor.withOpacity(0.5), width: 2),
+                boxShadow: isSelected ? [BoxShadow(color: mode.accentColor.withOpacity(0.3), blurRadius: 10)] : [],
+              ),
+            ),
+            const SizedBox(width: 14),
+            Icon(mode.icon, size: 18, color: mode.accentColor),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(mode.label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected ? mode.accentColor : colors.textPrimary,
+                )),
+            ),
+            if (isSelected)
+              Container(
+                width: 22, height: 22,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: mode.accentColor),
+                child: const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+              ),
+          ],
         ),
       ),
     );

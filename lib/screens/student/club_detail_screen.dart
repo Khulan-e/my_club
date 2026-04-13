@@ -45,26 +45,35 @@ class _ClubDetailScreenState extends State<ClubDetailScreen> {
       _clubService.getClubReviews(widget.clubId),
       if (userId != null) _reviewService.getMyReview(userId, widget.clubId),
     ]);
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _club    = results[0] as Map<String, dynamic>?;
       _events  = results[1] as List<Map<String, dynamic>>;
       _reviews = results[2] as List<Map<String, dynamic>>;
       if (results.length > 3) _myReview = results[3] as Map<String, dynamic>?;
       _loading = false;
     });
+    }
   }
 
   Future<void> _sendRequest() async {
     if (_msgCtrl.text.trim().isEmpty) return;
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Нэвтэрсэн хэрэглэгч олдсонгүй'), backgroundColor: Colors.red),
+      );
+      return;
+    }
     setState(() => _sending = true);
-    try {
-      final auth = context.read<AuthProvider>();
+    try 
+    {
       await _requestService.sendRequest(
-        userId: auth.user!.id,
+        userId: user.id,
         clubId: widget.clubId,
         clubName: _club!['name'],
         message: _msgCtrl.text.trim(),
-        userData: auth.profile!,
+        userData: {'id': user.id},
       );
       if (!mounted) return;
       Navigator.pop(context);

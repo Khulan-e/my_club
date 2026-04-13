@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/auth_provider.dart';
+import '../../models/models.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/theme_and_constants.dart';
 import '../../widgets/common_widgets.dart';
@@ -31,6 +32,27 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // ── Role-д тулгуурлан navigate хийх ──────────────────────
+  void _navigateByRole(BuildContext context) {
+    final auth = context.read<AuthProvider>();
+    String route;
+
+    switch (auth.userRole) {
+      case UserRole.superAdmin:
+        route = '/super-admin';
+        break;
+      case UserRole.clubAdmin:
+        route = '/admin';
+        break;
+      case UserRole.student:
+      default:
+        route = '/home';
+        break;
+    }
+
+    Navigator.pushReplacementNamed(context, route);
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _loading = true; _error = null; });
@@ -46,8 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (err != null) {
       setState(() => _error = err);
     } else {
-      final isAdmin = context.read<AuthProvider>().isAdmin;
-      Navigator.pushReplacementNamed(context, isAdmin ? '/admin' : '/home');
+      _navigateByRole(context);
     }
   }
 
@@ -209,6 +230,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (err != null) {
       setState(() => _error = err);
     } else {
+      // Бүртгүүлсэн хэрэглэгч default student -> /home руу
       Navigator.pushReplacementNamed(context, '/home');
     }
   }
@@ -367,7 +389,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _loading = true; _error = null; });
     try {
-      // AuthService-ийг supabase_service.dart-аас import хийсэн
       await AuthService().sendPasswordReset(_emailCtrl.text.trim());
       if (mounted) setState(() { _sent = true; _loading = false; });
     } catch (e) {
@@ -477,7 +498,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _loading = true; _error = null; });
     try {
-      // AuthService-ийг supabase_service.dart-аас import хийсэн
       await AuthService().changePassword(_newCtrl.text);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

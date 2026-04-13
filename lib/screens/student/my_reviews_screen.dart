@@ -1,9 +1,6 @@
 // lib/screens/student/my_reviews_screen.dart
 // ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../providers/auth_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/theme_and_constants.dart';
 import '../../widgets/common_widgets.dart';

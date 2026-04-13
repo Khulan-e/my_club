@@ -1,5 +1,7 @@
 // lib/widgets/common_widgets.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/theme_provider.dart';
 import '../utils/theme_and_constants.dart';
 
 // ─────────────────────────────────────────
@@ -31,17 +33,19 @@ class AppTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.watch<ThemeProvider>().colors;
     return TextFormField(
       controller:   controller,
       obscureText:  obscureText,
       keyboardType: keyboardType,
       maxLines:     obscureText ? 1 : maxLines,
       validator:    validator,
+      style: TextStyle(color: c.textPrimary, fontSize: 14),
       decoration: InputDecoration(
         labelText:  label,
         hintText:   hint,
         prefixIcon: prefixIcon != null
-            ? Icon(prefixIcon, size: 20, color: AppColors.textMuted)
+            ? Icon(prefixIcon, size: 20, color: c.textMuted)
             : null,
         suffixIcon: suffixIcon,
       ),
@@ -87,18 +91,13 @@ class AppButton extends StatelessWidget {
     if (outlined) {
       return SizedBox(
         width: double.infinity,
-        child: OutlinedButton(
-          onPressed: loading ? null : onPressed,
-          child: child,
-        ),
+        child: OutlinedButton(onPressed: loading ? null : onPressed, child: child),
       );
     }
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        style: color != null
-            ? ElevatedButton.styleFrom(backgroundColor: color)
-            : null,
+        style: color != null ? ElevatedButton.styleFrom(backgroundColor: color) : null,
         onPressed: loading ? null : onPressed,
         child: child,
       ),
@@ -115,21 +114,22 @@ class ErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.watch<ThemeProvider>().colors;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFCEBEB),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFF7C1C1)),
+        color: c.coral.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: c.coral.withOpacity(0.3)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, size: 18, color: Color(0xFFA32D2D)),
+          Icon(Icons.error_outline, size: 18, color: c.coral),
           const SizedBox(width: 8),
           Expanded(
             child: Text(message,
-              style: const TextStyle(color: Color(0xFFA32D2D), fontSize: 13)),
+              style: TextStyle(color: c.coral, fontSize: 13)),
           ),
         ],
       ),
@@ -146,12 +146,13 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.watch<ThemeProvider>().colors;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Text(title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12, fontWeight: FontWeight.w600,
-          color: AppColors.textMuted, letterSpacing: 0.5,
+          color: c.textMuted, letterSpacing: 0.5,
         )),
     );
   }
@@ -166,28 +167,30 @@ class CategoryBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color bg; Color fg; String label;
+    final c = context.watch<ThemeProvider>().colors;
+    Color color; String label;
     switch (category) {
       case 'professional':
-        bg = AppColors.primaryLight; fg = AppColors.primaryDark; label = 'Мэргэжлийн';
+        color = c.primary; label = 'Мэргэжлийн';
         break;
       case 'hobby':
-        bg = AppColors.tealLight; fg = AppColors.teal; label = 'Сонирхлын';
+        color = c.teal; label = 'Сонирхлын';
         break;
       case 'art':
-        bg = const Color(0xFFFBEAF0); fg = const Color(0xFF72243E); label = 'Урлагийн';
+        color = c.accent; label = 'Урлагийн';
         break;
       default:
-        bg = Colors.grey.shade100; fg = Colors.grey.shade700; label = category;
+        color = c.textMuted; label = category;
     }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
-        color: bg,
+        color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.25)),
       ),
       child: Text(label,
-        style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w500)),
+        style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -201,33 +204,31 @@ class StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color bg; Color fg; String label; IconData icon;
+    final c = context.watch<ThemeProvider>().colors;
+    Color color; String label; IconData icon;
     switch (status) {
       case 'approved':
-        bg = AppColors.tealLight; fg = AppColors.teal;
-        label = 'Батлагдсан'; icon = Icons.check_circle_outline_rounded;
+        color = c.teal;  label = 'Батлагдсан';    icon = Icons.check_circle_outline_rounded;
         break;
       case 'rejected':
-        bg = const Color(0xFFFCEBEB); fg = const Color(0xFFA32D2D);
-        label = 'Татгалзсан'; icon = Icons.cancel_outlined;
+        color = c.coral; label = 'Татгалзсан';    icon = Icons.cancel_outlined;
         break;
-      default: // pending
-        bg = AppColors.amberLight; fg = AppColors.amber;
-        label = 'Хүлээгдэж буй'; icon = Icons.hourglass_empty_rounded;
+      default:
+        color = const Color(0xFFFFBE45); label = 'Хүлээгдэж буй'; icon = Icons.hourglass_empty_rounded;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: bg,
+        color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: fg),
+          Icon(icon, size: 13, color: color),
           const SizedBox(width: 4),
-          Text(label,
-            style: TextStyle(fontSize: 12, color: fg, fontWeight: FontWeight.w500)),
+          Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -248,17 +249,25 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.watch<ThemeProvider>().colors;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 48, color: AppColors.textMuted),
-            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: c.primary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(icon, size: 40, color: c.textMuted),
+            ),
+            const SizedBox(height: 16),
             Text(message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 14)),
+              style: TextStyle(color: c.textMuted, fontSize: 14)),
           ],
         ),
       ),
@@ -274,14 +283,15 @@ class LoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: CircularProgressIndicator(color: AppColors.primary),
+    final c = context.watch<ThemeProvider>().colors;
+    return Center(
+      child: CircularProgressIndicator(color: c.primary, strokeWidth: 2.5),
     );
   }
 }
 
 // ─────────────────────────────────────────
-// ClubCard  — BorderedCard ашиглана
+// ClubCard
 // ─────────────────────────────────────────
 class ClubCard extends StatelessWidget {
   final Map<String, dynamic> club;
@@ -291,10 +301,19 @@ class ClubCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.watch<ThemeProvider>().colors;
     return GestureDetector(
       onTap: onTap,
-      child: BorderedCard(
+      child: Container(
         padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: c.bgCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: c.border.withOpacity(0.3)),
+          boxShadow: [
+            BoxShadow(color: c.primary.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2)),
+          ],
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -303,29 +322,26 @@ class ClubCard extends StatelessWidget {
                 Container(
                   width: 42, height: 42,
                   decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
-                    borderRadius: BorderRadius.circular(10),
+                    gradient: c.accentGradient,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: club['logo_url'] != null &&
-                          (club['logo_url'] as String).isNotEmpty
+                  child: club['logo_url'] != null && (club['logo_url'] as String).isNotEmpty
                       ? ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                           child: Image.network(club['logo_url'], fit: BoxFit.cover))
-                      : const Icon(Icons.groups_rounded,
-                          color: AppColors.primary, size: 22),
+                      : const Icon(Icons.groups_rounded, color: Colors.white, size: 22),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(club['name'],
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w600),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 2),
-                      CategoryBadge(category: club['category']),
+                      Text(club['name'] ?? '',
+                        style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600, color: c.textPrimary),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 3),
+                      CategoryBadge(category: club['category'] ?? ''),
                     ],
                   ),
                 ),
@@ -334,27 +350,21 @@ class ClubCard extends StatelessWidget {
             if (club['description'] != null) ...[
               const SizedBox(height: 8),
               Text(club['description'],
-                style: const TextStyle(
-                    fontSize: 12, color: AppColors.textMuted),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis),
+                style: TextStyle(fontSize: 12, color: c.textSecondary),
+                maxLines: 2, overflow: TextOverflow.ellipsis),
             ],
-            const SizedBox(height: 10),
+            const Spacer(),
             Row(
               children: [
-                const Icon(Icons.star_rounded,
-                    size: 14, color: AppColors.amber),
+                const Icon(Icons.star_rounded, size: 14, color: Color(0xFFFFBE45)),
                 const SizedBox(width: 3),
                 Text((club['avg_rating'] ?? 0.0).toStringAsFixed(1),
-                  style: const TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w500)),
-                const SizedBox(width: 10),
-                const Icon(Icons.people_outline,
-                    size: 14, color: AppColors.textMuted),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFFFFBE45))),
+                const SizedBox(width: 12),
+                Icon(Icons.people_outline, size: 14, color: c.textMuted),
                 const SizedBox(width: 3),
                 Text('${club['member_count'] ?? 0} гишүүн',
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.textMuted)),
+                  style: TextStyle(fontSize: 12, color: c.textMuted)),
               ],
             ),
           ],

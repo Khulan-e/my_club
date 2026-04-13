@@ -1,9 +1,55 @@
 // lib/models/models.dart
-// Supabase ашиглах тул cloud_firestore import байхгүй
-// Өгөгдлийг Map<String, dynamic> хэлбэрээр авна
 
-enum UserRole { student, clubManager, admin }
+// ─────────────────────────────────────────
+// USER ROLE — DB-д 'student', 'club_admin', 'super_admin' гэж хадгална
+// ─────────────────────────────────────────
+enum UserRole {
+  student,
+  clubAdmin,
+  superAdmin;
 
+  /// DB-ийн string → enum
+  static UserRole fromDb(String? value) {
+    switch (value) {
+      case 'club_admin':
+      case 'club_manager': // хуучин нэр
+        return UserRole.clubAdmin;
+      case 'super_admin':
+      case 'admin': // хуучин нэр
+        return UserRole.superAdmin;
+      default:
+        return UserRole.student;
+    }
+  }
+
+  /// enum → DB string
+  String toDb() {
+    switch (this) {
+      case UserRole.clubAdmin:
+        return 'club_admin';
+      case UserRole.superAdmin:
+        return 'super_admin';
+      case UserRole.student:
+        return 'student';
+    }
+  }
+
+  /// UI-д харуулах нэр
+  String get label {
+    switch (this) {
+      case UserRole.clubAdmin:
+        return 'Клубын тэргүүн';
+      case UserRole.superAdmin:
+        return 'Супер админ';
+      case UserRole.student:
+        return 'Оюутан';
+    }
+  }
+}
+
+// ─────────────────────────────────────────
+// USER MODEL
+// ─────────────────────────────────────────
 class UserModel {
   final String id;
   final String fullName;
@@ -13,6 +59,8 @@ class UserModel {
   final String department;
   final String phone;
   final UserRole role;
+  final String? managedClubId;
+  final String? avatarUrl;
   final DateTime createdAt;
 
   UserModel({
@@ -24,22 +72,23 @@ class UserModel {
     required this.department,
     required this.phone,
     this.role = UserRole.student,
+    this.managedClubId,
+    this.avatarUrl,
     required this.createdAt,
   });
 
   factory UserModel.fromMap(Map<String, dynamic> d) {
     return UserModel(
-      id:          d['id'] ?? '',
-      fullName:    d['full_name'] ?? '',
-      email:       d['email'] ?? '',
-      studentCode: d['student_code'] ?? '',
-      school:      d['school'] ?? '',
-      department:  d['department'] ?? '',
-      phone:       d['phone'] ?? '',
-      role: UserRole.values.firstWhere(
-        (r) => r.name == (d['role'] ?? 'student'),
-        orElse: () => UserRole.student,
-      ),
+      id:            d['id'] ?? '',
+      fullName:      d['full_name'] ?? '',
+      email:         d['email'] ?? '',
+      studentCode:   d['student_code'] ?? '',
+      school:        d['school'] ?? '',
+      department:    d['department'] ?? '',
+      phone:         d['phone'] ?? '',
+      role:          UserRole.fromDb(d['role']),
+      managedClubId: d['managed_club_id'],
+      avatarUrl:     d['avatar_url'],
       createdAt: d['created_at'] != null
           ? DateTime.parse(d['created_at'])
           : DateTime.now(),
@@ -47,14 +96,19 @@ class UserModel {
   }
 
   Map<String, dynamic> toMap() => {
-    'full_name':    fullName,
-    'email':        email,
-    'student_code': studentCode,
-    'school':       school,
-    'department':   department,
-    'phone':        phone,
-    'role':         role.name,
+    'full_name':       fullName,
+    'email':           email,
+    'student_code':    studentCode,
+    'school':          school,
+    'department':      department,
+    'phone':           phone,
+    'role':            role.toDb(),
+    'managed_club_id': managedClubId,
   };
+
+  bool get isStudent    => role == UserRole.student;
+  bool get isClubAdmin  => role == UserRole.clubAdmin;
+  bool get isSuperAdmin => role == UserRole.superAdmin;
 }
 
 // ─────────────────────────────────────────
@@ -81,11 +135,11 @@ class JoinRequestModel {
 
   factory JoinRequestModel.fromMap(Map<String, dynamic> d) {
     return JoinRequestModel(
-      id:          d['id'] ?? '',
-      userId:      d['user_id'] ?? '',
-      clubId:      d['club_id'] ?? '',
-      clubName:    d['clubs']?['name'] ?? '',
-      message:     d['message'] ?? '',
+      id:       d['id'] ?? '',
+      userId:   d['user_id'] ?? '',
+      clubId:   d['club_id'] ?? '',
+      clubName: d['clubs']?['name'] ?? '',
+      message:  d['message'] ?? '',
       status: RequestStatus.values.firstWhere(
         (s) => s.name == (d['status'] ?? 'pending'),
         orElse: () => RequestStatus.pending,
