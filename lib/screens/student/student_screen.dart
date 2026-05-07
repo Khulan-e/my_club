@@ -8,6 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/theme_and_constants.dart';
 import '../../widgets/common_widgets.dart';
+import 'my_requests_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -629,6 +630,12 @@ class _ProfileTab extends StatelessWidget {
           _menuItem(c, context, Icons.volunteer_activism_outlined, 'Сайн дурын цаг',    () => Navigator.pushNamed(context, '/my-hours')),
           _menuItem(c, context, Icons.send_outlined,               'Элсэх хүсэлтүүд',   () => Navigator.pushNamed(context, '/my-requests')),
           _menuItem(c, context, Icons.star_outline_rounded,        'Миний үнэлгээ',      () => Navigator.pushNamed(context, '/my-reviews')),
+          _menuItem(c, context, Icons.feedback_outlined,           'Санал хүсэлт',       () => Navigator.push(context, MaterialPageRoute(
+            builder: (_) => ChangeNotifierProvider.value(
+              value: context.read<ThemeProvider>(),
+              child: const RequestListScreen(),
+            ),
+          ))),
           _menuItem(c, context, Icons.lock_outline,                'Нууц үг солих',      () => Navigator.pushNamed(context, '/change-password')),
           _menuItem(c, context, Icons.palette_outlined,            'Загвар солих',       () => _showThemePicker(context, tp)),
           if (auth.isClubAdmin)

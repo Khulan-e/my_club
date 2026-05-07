@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'my_requests_screen.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/supabase_service.dart';
@@ -288,7 +289,6 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                     : _row(c, 'Тэнхим', profile?['department'] ?? '-'),
               ]),
               const SizedBox(height: 12),
-
               Card(
                 child: ListTile(
                   leading: Icon(Icons.lock_outline, color: c.primary),

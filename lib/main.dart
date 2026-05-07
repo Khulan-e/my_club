@@ -6,6 +6,7 @@ import 'utils/theme_and_constants.dart';
 import 'providers/auth_provider.dart';
 import 'models/models.dart';
 import 'providers/theme_provider.dart';
+import 'providers/background_provider.dart';
 
 // Auth
 import 'screens/auth/login_screen.dart';
@@ -21,6 +22,7 @@ import 'screens/student/my_clubs_screen.dart';
 import 'screens/student/my_requests_screen.dart';
 import 'screens/student/my_hours_screen.dart';
 import 'screens/student/my_reviews_screen.dart';
+import 'screens/student/chat_tab_screen.dart';
 
 // Admin (club_admin)
 import 'screens/admin/admin_dashboard_screen.dart';
@@ -49,6 +51,7 @@ class ClubHubApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => BackgroundProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
@@ -60,21 +63,17 @@ class ClubHubApp extends StatelessWidget {
             themeMode: themeProvider.isDark ? ThemeMode.dark : ThemeMode.light,
             home: const AuthWrapper(),
             routes: {
-              // Auth
               '/login':           (_) => const LoginScreen(),
               '/register':        (_) => const RegisterScreen(),
               '/forgot-password': (_) => const ForgotPasswordScreen(),
               '/change-password': (_) => const ChangePasswordScreen(),
-              // Student
               '/home':            (_) => const HomeScreen(),
               '/profile':         (_) => const MyProfileScreen(),
               '/my-clubs':        (_) => const MyClubsScreen(),
-              '/my-requests':     (_) => const MyRequestsScreen(),
+              '/my-requests':     (_) => const RequestListScreen(),
               '/my-hours':        (_) => const MyHoursScreen(),
               '/my-reviews':      (_) => const MyReviewsScreen(),
-              // Admin (club_admin)
               '/admin':           (_) => const AdminDashboardScreen(),
-              // Super admin
               '/super-admin':     (_) => const SuperAdminScreen(),
             },
             onGenerateRoute: (settings) {
@@ -110,14 +109,21 @@ class AuthWrapper extends StatelessWidget {
           return const LoginScreen();
         }
 
+        // Нэвтэрсэн хэрэглэгчид дуудлагын global listener байнга идэвхтэй —
+        // ямар ч tab/screen дээр байсан утсан дээр ringing screen гарч ирнэ.
+        Widget home;
         switch (auth.userRole) {
           case UserRole.superAdmin:
-            return const SuperAdminScreen();
+            home = const SuperAdminScreen();
+            break;
           case UserRole.clubAdmin:
-            return const AdminDashboardScreen();
+            home = const AdminDashboardScreen();
+            break;
           case UserRole.student:
-            return const HomeScreen();
+            home = const HomeScreen();
+            break;
         }
+        return IncomingCallListener(child: home);
       },
     );
   }

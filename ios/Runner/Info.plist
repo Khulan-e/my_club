@@ -66,5 +66,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Видео дуудлага хийхийн тулд камер ашиглах шаардлагатай.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Дуу/видео дуудлага хийх, дуут мессеж бичихийн тулд микрофон ашиглах шаардлагатай.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Профайл зураг болон чатад зураг илгээхийн тулд зургийн санд хандах шаардлагатай.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Хүлээн авсан зургийг зургийн санд хадгалахын тулд зөвшөөрөл шаардлагатай.</string>
 </dict>
 </plist>

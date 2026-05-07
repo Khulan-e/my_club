@@ -1,10 +1,83 @@
 // lib/screens/auth/login_screen.dart
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/models.dart';
 import '../../utils/theme_and_constants.dart';
 import '../../widgets/common_widgets.dart';
+
+class _ClubHubLogoPainter extends CustomPainter {
+  final Color color;
+  const _ClubHubLogoPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final cx = w * 0.50;
+    final cy = h * 0.50;
+    final r  = w * 0.38;
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.022
+      ..strokeCap = StrokeCap.round;
+
+    // ── C: нум (баруун талаас нээлттэй ~280°) ────────────
+    const startAngle = 38 * math.pi / 180;
+    const sweepAngle = 284 * math.pi / 180;
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(cx * 0.86, cy), radius: r),
+      startAngle,
+      sweepAngle,
+      false,
+      paint,
+    );
+
+    // ── H зүүн шугам (тойргийн дотор, жижиг) ────────────
+    final lx1 = cx * 0.86 + r * 0.10;
+    canvas.drawLine(
+      Offset(lx1, cy - r * 0.68),
+      Offset(lx1, cy + r * 0.68),
+      paint,
+    );
+
+    // ── H баруун шугам (тойргийн гадна, урт) ─────────────
+    final lx2 = cx * 0.86 + r * 1.08;
+    canvas.drawLine(
+      Offset(lx2, cy - r * 0.78),
+      Offset(lx2, cy + r * 0.78),
+      paint,
+    );
+
+    // ── 4-point star (жижиг, хоёр шугамын дунд) ──────────
+    final starX = cx * 0.86 + r * 0.58;
+    final starY = cy;
+    _drawStar(canvas, Offset(starX, starY), w * 0.14, color);
+  }
+
+  void _drawStar(Canvas canvas, Offset c, double size, Color color) {
+    final fillPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final s = size * 0.5;
+    final t = size * 0.10;
+    final path = Path()
+      ..moveTo(c.dx, c.dy - s)
+      ..quadraticBezierTo(c.dx + t, c.dy, c.dx + s, c.dy)
+      ..quadraticBezierTo(c.dx, c.dy + t, c.dx, c.dy + s)
+      ..quadraticBezierTo(c.dx - t, c.dy, c.dx - s, c.dy)
+      ..quadraticBezierTo(c.dx, c.dy - t, c.dx, c.dy - s)
+      ..close();
+    canvas.drawPath(path, fillPaint);
+  }
+
+  @override
+  bool shouldRepaint(_ClubHubLogoPainter old) => old.color != color;
+}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -31,16 +104,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final auth = context.read<AuthProvider>();
     String route;
     switch (auth.userRole) {
-      case UserRole.superAdmin:
-        route = '/super-admin';
-        break;
-      case UserRole.clubAdmin:
-        route = '/admin';
-        break;
+      case UserRole.superAdmin: route = '/super-admin'; break;
+      case UserRole.clubAdmin:  route = '/admin';       break;
       case UserRole.student:
-      default:
-        route = '/home';
-        break;
+      default:                  route = '/home';        break;
     }
     Navigator.pushReplacementNamed(context, route);
   }
@@ -48,23 +115,12 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _loading = true; _error = null; });
-
     final err = await context.read<AuthProvider>().login(
-      _emailCtrl.text.trim(),
-      _passCtrl.text,
-    );
-
+      _emailCtrl.text.trim(), _passCtrl.text);
     if (!mounted) return;
     setState(() => _loading = false);
-
-    if (err != null) {
-      setState(() => _error = err);
-      return;
-    }
-
-    // Profile ачаалагдтал хүлээх
+    if (err != null) { setState(() => _error = err); return; }
     await context.read<AuthProvider>().refreshProfile();
-
     if (!mounted) return;
     _navigateByRole(context);
   }
@@ -83,25 +139,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 44, height: 44,
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryLight,
-                            borderRadius: BorderRadius.circular(12),
+                    // ── Logo ─────────────────────────────
+                    Center(
+                      child: Column(children: [
+                        SizedBox(
+                          width: 120, height: 100,
+                          child: CustomPaint(
+                            painter: _ClubHubLogoPainter(color: AppColors.primary),
                           ),
-                          child: const Icon(Icons.school_rounded,
-                              color: AppColors.primary, size: 24),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(height: 12),
                         Text('ClubHub',
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.primary)),
-                      ],
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.w700, color: AppColors.primary)),
+                      ]),
                     ),
                     const SizedBox(height: 8),
                     Text('ХУИС — Оюутны клубуудын платформ',
@@ -138,13 +189,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       prefixIcon: Icons.lock_outline_rounded,
                       suffixIcon: IconButton(
                         icon: Icon(
-                            _obscure
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                            size: 20,
-                            color: AppColors.textMuted),
-                        onPressed: () =>
-                            setState(() => _obscure = !_obscure),
+                          _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                          size: 20, color: AppColors.textMuted),
+                        onPressed: () => setState(() => _obscure = !_obscure),
                       ),
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'Нууц үг оруулна уу';
@@ -156,26 +203,20 @@ class _LoginScreenState extends State<LoginScreen> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () => Navigator.pushNamed(
-                            context, '/forgot-password'),
+                        onPressed: () => Navigator.pushNamed(context, '/forgot-password'),
                         child: const Text('Нууц үг мартсан?'),
                       ),
                     ),
                     const SizedBox(height: 8),
-                    AppButton(
-                        label: 'Нэвтрэх',
-                        loading: _loading,
-                        onPressed: _submit),
+                    AppButton(label: 'Нэвтрэх', loading: _loading, onPressed: _submit),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text('Бүртгэл байхгүй?',
-                            style: TextStyle(
-                                color: AppColors.textMuted, fontSize: 14)),
+                            style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
                         TextButton(
-                          onPressed: () =>
-                              Navigator.pushNamed(context, '/register'),
+                          onPressed: () => Navigator.pushNamed(context, '/register'),
                           child: const Text('Бүртгүүлэх'),
                         ),
                       ],

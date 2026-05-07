@@ -1,13 +1,91 @@
 // lib/screens/student/home_screen.dart
+import 'dart:math' as math;
+import 'dart:ui';
 // ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
+import 'chat_tab_screen.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../providers/background_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/theme_and_constants.dart';
 import '../../widgets/common_widgets.dart';
 import 'my_profile_screen.dart' show AvatarWidget;
+import 'my_requests_screen.dart';
+
+
+// ── ClubHub Logo Painter (C + H монограм) ───────────────────
+class _ClubHubLogoPainter extends CustomPainter {
+  final Color color;
+  const _ClubHubLogoPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final cx = w * 0.50;
+    final cy = h * 0.50;
+    final r  = w * 0.38;
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.022
+      ..strokeCap = StrokeCap.round;
+
+    // ── C: нум (баруун талаас нээлттэй ~280°) ────────────
+    const startAngle = 38 * math.pi / 180;
+    const sweepAngle = 284 * math.pi / 180;
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(cx * 0.86, cy), radius: r),
+      startAngle,
+      sweepAngle,
+      false,
+      paint,
+    );
+
+    // ── H зүүн шугам (тойргийн дотор, жижиг) ────────────
+    final lx1 = cx * 0.86 + r * 0.10;
+    canvas.drawLine(
+      Offset(lx1, cy - r * 0.68),
+      Offset(lx1, cy + r * 0.68),
+      paint,
+    );
+
+    // ── H баруун шугам (тойргийн гадна, урт) ─────────────
+    final lx2 = cx * 0.86 + r * 1.08;
+    canvas.drawLine(
+      Offset(lx2, cy - r * 0.78),
+      Offset(lx2, cy + r * 0.78),
+      paint,
+    );
+
+    // ── 4-point star (жижиг, хоёр шугамын дунд) ──────────
+    final starX = cx * 0.86 + r * 0.58;
+    final starY = cy;
+    _drawStar(canvas, Offset(starX, starY), w * 0.14, color);
+  }
+
+  void _drawStar(Canvas canvas, Offset c, double size, Color color) {
+    final fillPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    final s = size * 0.5;
+    final t = size * 0.10;
+    final path = Path()
+      ..moveTo(c.dx, c.dy - s)
+      ..quadraticBezierTo(c.dx + t, c.dy, c.dx + s, c.dy)
+      ..quadraticBezierTo(c.dx, c.dy + t, c.dx, c.dy + s)
+      ..quadraticBezierTo(c.dx - t, c.dy, c.dx - s, c.dy)
+      ..quadraticBezierTo(c.dx, c.dy - t, c.dx, c.dy - s)
+      ..close();
+    canvas.drawPath(path, fillPaint);
+  }
+
+  @override
+  bool shouldRepaint(_ClubHubLogoPainter old) => old.color != color;
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,11 +98,10 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
   @override
-  void initState() {
-    super.initState();
-    Future.delayed(const Duration(milliseconds: 2800), () {
-      if (mounted) setState(() => _showSplash = false);
-    });
+  void initState() { super.initState(); }
+
+  void _onSplashDone() {
+    if (mounted) setState(() => _showSplash = false);
   }
 
   final _pages = [
@@ -37,18 +114,27 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.watch<ThemeProvider>().colors;
+    final c  = context.watch<ThemeProvider>().colors;
+    final bg = context.watch<BackgroundProvider>();
 
-    if (_showSplash) return const _SplashScreen();
+    if (_showSplash) return _SplashScreen(onDone: _onSplashDone);
 
-    return Container(
-      decoration: BoxDecoration(gradient: c.bgGradient),
-      child: Scaffold(
+    return Stack(children: [
+      // Чосон background gradient
+      Positioned.fill(
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: bg.useThemeDefault ? c.bgGradient : bg.preset.gradient,
+          ),
+        ),
+      ),
+      // Одтой shimmer overlay (preset.hasStars үед л)
+      if (!bg.useThemeDefault && bg.preset.hasStars)
+        const Positioned.fill(child: StarryOverlay()),
+      Scaffold(
         extendBody: false,
         backgroundColor: Colors.transparent,
         body: IndexedStack(index: _currentIndex, children: _pages),
-
-        // ── Pill Bottom Nav ───────────────────────────────────
         bottomNavigationBar: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
           child: Container(
@@ -64,17 +150,17 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _NavItem(icon: Icons.home_outlined,          selectedIcon: Icons.home_rounded,          index: 0, currentIndex: _currentIndex, colors: c, onTap: (i) => setState(() => _currentIndex = i)),
-                _NavItem(icon: Icons.groups_outlined,        selectedIcon: Icons.groups_rounded,        index: 1, currentIndex: _currentIndex, colors: c, onTap: (i) => setState(() => _currentIndex = i)),
-                _NavItem(icon: Icons.calendar_month_outlined,selectedIcon: Icons.calendar_month_rounded,index: 2, currentIndex: _currentIndex, colors: c, onTap: (i) => setState(() => _currentIndex = i)),
-                _NavItem(icon: Icons.explore_outlined,       selectedIcon: Icons.explore_rounded,       index: 3, currentIndex: _currentIndex, colors: c, onTap: (i) => setState(() => _currentIndex = i)),
-                _NavItem(icon: Icons.person_outline,         selectedIcon: Icons.person_rounded,        index: 4, currentIndex: _currentIndex, colors: c, onTap: (i) => setState(() => _currentIndex = i)),
+                _NavItem(icon: Icons.home_outlined,           selectedIcon: Icons.home_rounded,           index: 0, currentIndex: _currentIndex, colors: c, onTap: (i) => setState(() => _currentIndex = i)),
+                _NavItem(icon: Icons.groups_outlined,         selectedIcon: Icons.groups_rounded,         index: 1, currentIndex: _currentIndex, colors: c, onTap: (i) => setState(() => _currentIndex = i)),
+                _NavItem(icon: Icons.calendar_month_outlined, selectedIcon: Icons.calendar_month_rounded, index: 2, currentIndex: _currentIndex, colors: c, onTap: (i) => setState(() => _currentIndex = i)),
+                _NavItem(icon: Icons.explore_outlined,        selectedIcon: Icons.explore_rounded,        index: 3, currentIndex: _currentIndex, colors: c, onTap: (i) => setState(() => _currentIndex = i)),
+                _NavItem(icon: Icons.person_outline,          selectedIcon: Icons.person_rounded,         index: 4, currentIndex: _currentIndex, colors: c, onTap: (i) => setState(() => _currentIndex = i)),
               ],
             ),
           ),
         ),
       ),
-    );
+    ]);
   }
 }
 
@@ -83,160 +169,305 @@ class _HomeScreenState extends State<HomeScreen> {
 // SPLASH SCREEN
 // ═══════════════════════════════════════════════════════════
 class _SplashScreen extends StatefulWidget {
-  const _SplashScreen();
+  final VoidCallback onDone;
+  const _SplashScreen({required this.onDone});
   @override
   State<_SplashScreen> createState() => _SplashScreenState();
 }
 
 class _SplashScreenState extends State<_SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _fadeIn;
-  late Animation<double> _scaleIn;
+    with TickerProviderStateMixin {
+
+  late AnimationController _bgCtrl;
+  late Animation<double>   _bgFade;
+  late AnimationController _bubbleCtrl;
+  late Animation<double>   _bubbleScale;
+  late Animation<double>   _bubbleFade;
+  late AnimationController _cardCtrl;
+  late Animation<double>   _cardScale;
+  late Animation<double>   _cardFade;
+  late AnimationController _contentCtrl;
+  late Animation<double>   _logoFade;
+  late Animation<double>   _logoSlide;
+  late Animation<double>   _titleFade;
+  late Animation<double>   _titleSlide;
+  late Animation<double>   _subtitleFade;
+  late AnimationController _shimmerCtrl;
+  late Animation<double>   _shimmerPos;
+  late AnimationController _exitCtrl;
+  late Animation<double>   _exitFade;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
-    _fadeIn  = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-    _scaleIn = Tween<double>(begin: 0.85, end: 1.0).animate(
-        CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack));
-    _ctrl.forward();
+    _bgCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _bgFade = CurvedAnimation(parent: _bgCtrl, curve: Curves.easeOut);
+    _bubbleCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+    _bubbleScale = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _bubbleCtrl, curve: Curves.elasticOut));
+    _bubbleFade  = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _bubbleCtrl, curve: const Interval(0.0, 0.4, curve: Curves.easeOut)));
+    _cardCtrl  = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+    _cardScale = Tween<double>(begin: 0.82, end: 1.0).animate(CurvedAnimation(parent: _cardCtrl, curve: Curves.easeOutBack));
+    _cardFade  = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _cardCtrl, curve: const Interval(0.0, 0.6, curve: Curves.easeOut)));
+    _contentCtrl  = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _logoFade     = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _contentCtrl, curve: const Interval(0.0,  0.4,  curve: Curves.easeOut)));
+    _logoSlide    = Tween<double>(begin: 20.0, end: 0.0).animate(CurvedAnimation(parent: _contentCtrl, curve: const Interval(0.0,  0.5,  curve: Curves.easeOut)));
+    _titleFade    = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _contentCtrl, curve: const Interval(0.25, 0.65, curve: Curves.easeOut)));
+    _titleSlide   = Tween<double>(begin: 18.0, end: 0.0).animate(CurvedAnimation(parent: _contentCtrl, curve: const Interval(0.25, 0.65, curve: Curves.easeOut)));
+    _subtitleFade = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _contentCtrl, curve: const Interval(0.5,  0.9,  curve: Curves.easeOut)));
+    _shimmerCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
+    _shimmerPos  = Tween<double>(begin: -1.5, end: 2.0).animate(CurvedAnimation(parent: _shimmerCtrl, curve: Curves.easeInOut));
+    _exitCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 450));
+    _exitFade = Tween<double>(begin: 1.0, end: 0.0).animate(CurvedAnimation(parent: _exitCtrl, curve: Curves.easeIn));
+    _run();
+  }
+
+  void _run() async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    _bgCtrl.forward();
+    await Future.delayed(const Duration(milliseconds: 200));
+    _bubbleCtrl.forward();
+    await Future.delayed(const Duration(milliseconds: 250));
+    await _cardCtrl.forward();
+    _contentCtrl.forward();
+    await Future.delayed(const Duration(milliseconds: 200));
+    await _shimmerCtrl.forward();
+    await Future.delayed(const Duration(milliseconds: 1000));
+    await _exitCtrl.forward();
+    if (mounted) widget.onDone();
   }
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() {
+    _bgCtrl.dispose(); _bubbleCtrl.dispose(); _cardCtrl.dispose();
+    _contentCtrl.dispose(); _shimmerCtrl.dispose(); _exitCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── Background: үргэлж #080816 ────────────────────────
+  static const _bgDark = Color(0xFF080816);
+
+  Color _bubbleColor(AppThemeMode mode) {
+    switch (mode) {
+      case AppThemeMode.darkPurple:  return const Color(0xFF8844ff);
+      case AppThemeMode.whitePurple: return const Color(0xFF9b5de5);
+      case AppThemeMode.light:       return const Color(0xFF5b4fff);
+      default:                       return const Color(0xFF6C63FF);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    const bgColor = Color(0xFFF5F0FF);
-    const textColor = Color(0xFFD4C5F0);
-    const accentColor = Color(0xFF6C63FF);
+    final size      = MediaQuery.of(context).size;
+    final themeMode = context.watch<ThemeProvider>().mode;
+    final bubbleClr = _bubbleColor(themeMode);
+    final c         = context.watch<ThemeProvider>().colors;
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      body: Stack(children: [
-        // ── "CLUB" тиле давтагдсан арын фон ───────────────
-        Positioned.fill(
-          child: OverflowBox(
-            maxWidth: double.infinity,
-            maxHeight: double.infinity,
-            child: SizedBox(
-              width: size.width,
-              height: size.height,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(9, (row) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text(
-                    'CLUB  CLUB  CLUB  CLUB',
-                    style: TextStyle(
-                      fontSize: 52,
-                      fontWeight: FontWeight.w900,
-                      color: textColor,
-                      letterSpacing: 2,
-                      height: 1.1,
-                    ),
-                  ),
-                )),
+    return FadeTransition(
+      opacity: _exitFade,
+      child: Scaffold(
+        backgroundColor: _bgDark,
+        body: AnimatedBuilder(
+          animation: _bgCtrl,
+          builder: (_, child) => Opacity(opacity: _bgFade.value, child: child),
+          child: Container(
+            color: _bgDark,
+            child: Stack(children: [
+              // ── арын тойрог чимэглэл ──────────────────
+              Positioned(top: -60, left: size.width * 0.1,
+                child: Container(width: 220, height: 220,
+                  decoration: BoxDecoration(shape: BoxShape.circle,
+                    color: const Color(0xFF6C63FF).withOpacity(0.07)))),
+              Positioned(bottom: size.height * 0.1, right: -40,
+                child: Container(width: 180, height: 180,
+                  decoration: BoxDecoration(shape: BoxShape.circle,
+                    color: const Color(0xFF6C63FF).withOpacity(0.05)))),
+
+              AnimatedBuilder(
+                animation: _bubbleCtrl,
+                builder: (_, __) => Stack(children: [
+                  Positioned(left: -28, top: size.height * 0.42,
+                    child: Opacity(opacity: _bubbleFade.value,
+                      child: Transform.scale(scale: _bubbleScale.value, alignment: Alignment.centerRight,
+                        child: _GlassBubble(size: 110, color: bubbleClr)))),
+                  Positioned(right: -20, bottom: size.height * 0.22,
+                    child: Opacity(opacity: _bubbleFade.value,
+                      child: Transform.scale(scale: _bubbleScale.value, alignment: Alignment.centerLeft,
+                        child: _GlassBubble(size: 88, color: bubbleClr)))),
+                  Positioned(right: size.width * 0.22, top: size.height * 0.1,
+                    child: Opacity(opacity: _bubbleFade.value,
+                      child: Transform.scale(scale: _bubbleScale.value, alignment: Alignment.center,
+                        child: _GlassBubble(size: 52, color: bubbleClr)))),
+                ]),
               ),
-            ),
-          ),
-        ),
 
-        // ── "HUB" — дунд, metallic gradient ───────────────
-        Center(
-          child: FadeTransition(
-            opacity: _fadeIn,
-            child: ScaleTransition(
-              scale: _scaleIn,
-              child: ShaderMask(
-                shaderCallback: (bounds) => const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFB06BFF),
-                    Color(0xFF6C63FF),
-                    Color(0xFFFF6EC7),
-                    Color(0xFF6C63FF),
-                    Color(0xFFB06BFF),
-                  ],
-                  stops: [0.0, 0.25, 0.5, 0.75, 1.0],
-                ).createShader(bounds),
-                child: Text(
-                  'HUB',
-                  style: TextStyle(
-                    fontSize: size.width * 0.32,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    letterSpacing: -4,
-                    height: 1,
+              Center(
+                child: AnimatedBuilder(
+                  animation: _cardCtrl,
+                  builder: (_, child) => Opacity(opacity: _cardFade.value,
+                    child: Transform.scale(scale: _cardScale.value, child: child)),
+                  child: _GlassCard(
+                    width: size.width * 0.75, height: size.height * 0.52,
+                    shimmerPos: _shimmerPos, shimmerCtrl: _shimmerCtrl, accentColor: c.primary,
+                    child: AnimatedBuilder(
+                      animation: _contentCtrl,
+                      builder: (_, __) => Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // ── Шинэ лого ──────────────────
+                          Opacity(opacity: _logoFade.value.clamp(0.0, 1.0),
+                            child: Transform.translate(offset: Offset(0, _logoSlide.value),
+                              child: SizedBox(width: 120, height: 100,
+                                child: CustomPaint(
+                                  painter: _ClubHubLogoPainter(color: Colors.white))))),
+                          const SizedBox(height: 20),
+                          Opacity(opacity: _titleFade.value.clamp(0.0, 1.0),
+                            child: Transform.translate(offset: Offset(0, _titleSlide.value),
+                              child: const Text('CLUBHUB',
+                                style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900,
+                                  color: Colors.white, letterSpacing: 4, height: 1)))),
+                          const SizedBox(height: 10),
+                          Opacity(opacity: _titleFade.value.clamp(0.0, 1.0),
+                            child: Container(width: 120, height: 1.5,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(colors: [Colors.transparent, Colors.white.withOpacity(0.6), Colors.transparent]),
+                                borderRadius: BorderRadius.circular(1)))),
+                          const SizedBox(height: 12),
+                          Opacity(opacity: _subtitleFade.value.clamp(0.0, 1.0),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                'ХУИС — Хүмүүнлэгийн Ухааны\nИх Сургуулийн клубуудын платформ',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 12, color: Colors.white70,
+                                  fontWeight: FontWeight.w400, height: 1.6, letterSpacing: 0.3)))),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-        ),
 
-        // ── Доод: ХУИС ────────────────────────────────────
-        Positioned(
-          bottom: 48,
-          left: 0, right: 0,
-          child: FadeTransition(
-            opacity: _fadeIn,
-            child: const Text(
-              'ClubHub — ХУИС',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF9B8EC4),
-                letterSpacing: 2,
+              Positioned(bottom: 60, left: 0, right: 0,
+                child: AnimatedBuilder(
+                  animation: _contentCtrl,
+                  builder: (_, __) => Opacity(
+                    opacity: _subtitleFade.value.clamp(0.0, 1.0),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(3, (i) => Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        width: 6, height: 6,
+                        decoration: BoxDecoration(shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(i == 1 ? 0.9 : 0.4))))),
+                  ),
+                ),
               ),
-            ),
+            ]),
           ),
         ),
-      ]),
+      ),
     );
   }
 }
 
-// ── Nav Item — pill-exit float + spotlight ───────────────────
+class _GlassBubble extends StatelessWidget {
+  final double size; final Color color;
+  const _GlassBubble({required this.size, required this.color});
+  @override
+  Widget build(BuildContext context) => SizedBox(width: size, height: size,
+    child: CustomPaint(painter: _BubblePainter(color: color)));
+}
+
+class _BubblePainter extends CustomPainter {
+  final Color color;
+  const _BubblePainter({required this.color});
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2; final cy = size.height / 2; final r = size.width / 2;
+    canvas.drawCircle(Offset(cx, cy), r, Paint()..shader = RadialGradient(
+      center: const Alignment(-0.3, -0.4), radius: 0.9,
+      colors: [color.withOpacity(0.55), color.withOpacity(0.3), color.withOpacity(0.15)],
+    ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r)));
+    canvas.drawCircle(Offset(cx, cy), r - 0.6, Paint()..style = PaintingStyle.stroke..strokeWidth = 1.2..color = Colors.white.withOpacity(0.35));
+    canvas.drawCircle(Offset(cx, cy), r, Paint()..shader = RadialGradient(
+      center: const Alignment(-0.25, -0.45), radius: 0.45,
+      colors: [Colors.white.withOpacity(0.85), Colors.white.withOpacity(0.0)],
+    ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r)));
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx - r * 0.3, cy - r * 0.35), width: r * 0.22, height: r * 0.14),
+      Paint()..color = Colors.white.withOpacity(0.75));
+    canvas.drawCircle(Offset(cx, cy), r, Paint()..shader = RadialGradient(
+      center: const Alignment(0.3, 0.7), radius: 0.4,
+      colors: [Colors.white.withOpacity(0.2), Colors.white.withOpacity(0.0)],
+    ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r)));
+  }
+  @override
+  bool shouldRepaint(_BubblePainter o) => o.color != color;
+}
+
+class _GlassCard extends StatelessWidget {
+  final double width, height; final Widget child;
+  final Animation<double> shimmerPos; final AnimationController shimmerCtrl; final Color accentColor;
+  const _GlassCard({required this.width, required this.height, required this.child,
+    required this.shimmerPos, required this.shimmerCtrl, required this.accentColor});
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(28),
+      child: Container(
+        width: width, height: height,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(28),
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [Colors.white.withOpacity(0.18), Colors.white.withOpacity(0.08), Colors.white.withOpacity(0.04)],
+            stops: const [0.0, 0.5, 1.0]),
+          border: Border.all(color: Colors.white.withOpacity(0.25), width: 1.2),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 32, spreadRadius: -4),
+            BoxShadow(color: accentColor.withOpacity(0.2), blurRadius: 20),
+          ],
+        ),
+        child: Stack(children: [
+          Positioned(top: -30, left: -20, right: -20,
+            child: Container(height: 100,
+              decoration: BoxDecoration(gradient: RadialGradient(
+                center: Alignment.topCenter, radius: 0.8,
+                colors: [Colors.white.withOpacity(0.12), Colors.transparent])))),
+          AnimatedBuilder(
+            animation: shimmerCtrl,
+            builder: (_, __) => Positioned.fill(
+              child: Transform.translate(
+                offset: Offset(shimmerPos.value * width, 0),
+                child: Container(width: 60,
+                  decoration: BoxDecoration(gradient: LinearGradient(
+                    colors: [Colors.transparent, Colors.white.withOpacity(0.18), Colors.transparent],
+                    stops: const [0.0, 0.5, 1.0])))))),
+          Center(child: child),
+        ]),
+      ),
+    );
+  }
+}
+
 class _NavItem extends StatefulWidget {
-  final IconData icon;
-  final IconData selectedIcon;
-  final int index;
-  final int currentIndex;
+  final IconData icon, selectedIcon;
+  final int index, currentIndex;
   final ThemeColors colors;
   final ValueChanged<int> onTap;
-
-  const _NavItem({
-    required this.icon,
-    required this.selectedIcon,
-    required this.index,
-    required this.currentIndex,
-    required this.colors,
-    required this.onTap,
-  });
-
+  const _NavItem({required this.icon, required this.selectedIcon, required this.index,
+    required this.currentIndex, required this.colors, required this.onTap});
   @override
   State<_NavItem> createState() => _NavItemState();
 }
 
 class _NavItemState extends State<_NavItem> with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
-  late Animation<double> _rise;   // icon дээш гарах
-  late Animation<double> _fade;   // spotlight fade
+  late Animation<double> _rise, _fade;
 
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 350));
-    _rise = Tween<double>(begin: 0, end: 1).animate(
-        CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack));
-    _fade = Tween<double>(begin: 0, end: 1).animate(
-        CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _rise = Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack));
+    _fade = Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
     if (widget.index == widget.currentIndex) _ctrl.forward();
   }
 
@@ -255,38 +486,23 @@ class _NavItemState extends State<_NavItem> with SingleTickerProviderStateMixin 
   Widget build(BuildContext context) {
     final isSel = widget.index == widget.currentIndex;
     final c     = widget.colors;
-
     return GestureDetector(
       onTap: () => widget.onTap(widget.index),
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
-        width: 60,
-        height: 64,
+        width: 60, height: 64,
         child: AnimatedBuilder(
           animation: _ctrl,
           builder: (_, __) {
-            final t = _rise.value; // 0..1
-            final offsetY = -14.0 * t; // дээш гарах
-
+            final t = _rise.value; final offsetY = -14.0 * t;
             return Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
+              clipBehavior: Clip.none, alignment: Alignment.center,
               children: [
-                // Spotlight — nav дээд хэсэгт
                 if (isSel)
-                  Positioned(
-                    top: -2,
-                    left: 0, right: 0,
-                    child: Opacity(
-                      opacity: _fade.value,
-                      child: CustomPaint(
-                        size: const Size(60, 40),
-                        painter: _SpotlightPainter(color: const Color(0xFF6C63FF)),
-                      ),
-                    ),
-                  ),
-
-                // Icon circle — дээш хөдлөх
+                  Positioned(top: -2, left: 0, right: 0,
+                    child: Opacity(opacity: _fade.value,
+                      child: CustomPaint(size: const Size(60, 40),
+                        painter: _SpotlightPainter(color: const Color(0xFF6C63FF))))),
                 Positioned(
                   top: 12 + offsetY,
                   child: AnimatedContainer(
@@ -295,30 +511,16 @@ class _NavItemState extends State<_NavItem> with SingleTickerProviderStateMixin 
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isSel ? const Color(0xFF6C63FF) : Colors.transparent,
-                      boxShadow: isSel
-                          ? [BoxShadow(color: Color(0xFF6C63FF).withOpacity(0.5 * _fade.value), blurRadius: 14)]
-                          : [],
-                    ),
-                    child: Icon(
-                      isSel ? widget.selectedIcon : widget.icon,
-                      color: isSel ? Colors.white : c.textMuted,
-                      size: 20,
-                    ),
-                  ),
-                ),
-
-                // Label — доор хэвээр
+                      boxShadow: isSel ? [BoxShadow(color: const Color(0xFF6C63FF).withOpacity(0.5 * _fade.value), blurRadius: 14)] : []),
+                    child: Icon(isSel ? widget.selectedIcon : widget.icon,
+                      color: isSel ? Colors.white : c.textMuted, size: 20))),
                 Positioned(
                   bottom: 6,
                   child: Text(
                     widget.index < _labels.length ? _labels[widget.index] : '',
-                    style: TextStyle(
-                      fontSize: 9,
+                    style: TextStyle(fontSize: 9,
                       fontWeight: isSel ? FontWeight.w600 : FontWeight.w400,
-                      color: isSel ? Colors.white : c.textMuted,
-                    ),
-                  ),
-                ),
+                      color: isSel ? Colors.white : c.textMuted))),
               ],
             );
           },
@@ -328,42 +530,26 @@ class _NavItemState extends State<_NavItem> with SingleTickerProviderStateMixin 
   }
 }
 
-// Spotlight beam — nav дээд edge-ээс туяа
 class _SpotlightPainter extends CustomPainter {
   final Color color;
   const _SpotlightPainter({required this.color});
-
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
-
-    // Top bar
-    final barPaint = Paint()
-      ..color = color.withOpacity(0.95)
-      ..style = PaintingStyle.fill;
-    final rRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(cx - 16, 0, 32, 4),
-      const Radius.circular(2));
-    canvas.drawRRect(rRect, barPaint);
-
-    // Beam trapezoid
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(cx - 16, 0, 32, 4), const Radius.circular(2)),
+      Paint()..color = color.withOpacity(0.95));
     final path = Path()
-      ..moveTo(cx - 6, 4)
-      ..lineTo(cx + 6, 4)
-      ..lineTo(cx + 24, size.height)
-      ..lineTo(cx - 24, size.height)
-      ..close();
-
-    canvas.drawPath(path, Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter, end: Alignment.bottomCenter,
-        colors: [color.withOpacity(0.6), color.withOpacity(0)],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)));
+      ..moveTo(cx - 6, 4)..lineTo(cx + 6, 4)
+      ..lineTo(cx + 24, size.height)..lineTo(cx - 24, size.height)..close();
+    canvas.drawPath(path, Paint()..shader = LinearGradient(
+      begin: Alignment.topCenter, end: Alignment.bottomCenter,
+      colors: [color.withOpacity(0.6), color.withOpacity(0)],
+    ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)));
   }
-
   @override
   bool shouldRepaint(_SpotlightPainter o) => o.color != color;
 }
+
 
 // ═══════════════════════════════════════════════════════════
 // TAB 1: Нүүр (Dashboard)
@@ -380,6 +566,7 @@ class _DashboardTabState extends State<_DashboardTab> {
   bool _loading       = true;
   List<Map<String, dynamic>> _announcements = [];
   List<Map<String, dynamic>> _events        = [];
+  List<Map<String, dynamic>> _polls         = [];
   List<Map<String, dynamic>> _notifications = [];
   final _pageCtrl      = PageController(viewportFraction: 0.88);
   final _eventPageCtrl = PageController(viewportFraction: 0.88);
@@ -388,7 +575,6 @@ class _DashboardTabState extends State<_DashboardTab> {
 
   @override
   void initState() { super.initState(); _load(); }
-
   @override
   void dispose() { _pageCtrl.dispose(); _eventPageCtrl.dispose(); super.dispose(); }
 
@@ -396,256 +582,331 @@ class _DashboardTabState extends State<_DashboardTab> {
     final uid = supabase.auth.currentUser?.id;
     if (uid == null) return;
     final hours = await _hoursService.getTotalHours(uid);
-
-    final memberships = await supabase
-        .from('club_memberships')
-        .select('club_id')
-        .eq('user_id', uid)
-        .eq('status', 'approved');
-    final clubIds = (memberships as List)
-        .map((m) => m['club_id'] as String)
-        .toList();
-
-    final announcements = clubIds.isEmpty
-        ? []
-        : await supabase
-            .from('announcements')
-            .select('*, clubs(name)')
-            .eq('status', 'published')
-            .inFilter('club_id', clubIds)
-            .order('created_at', ascending: false)
-            .limit(10);
-
+    final memberships = await supabase.from('club_memberships').select('club_id').eq('user_id', uid).eq('status', 'approved');
+    final clubIds = (memberships as List).map((m) => m['club_id'] as String).toList();
+    final announcements = clubIds.isEmpty ? [] : await supabase.from('announcements')
+        .select('*, clubs(name)').eq('status', 'published').inFilter('club_id', clubIds)
+        .order('created_at', ascending: false).limit(10);
     final now         = DateTime.now();
     final tomorrowStr = DateTime(now.year, now.month, now.day + 1).toIso8601String();
     final todayStr    = DateTime(now.year, now.month, now.day).toIso8601String();
-
-    final upcomingEvents = await supabase
-        .from('events')
-        .select('*, clubs(name)')
-        .gte('event_date', tomorrowStr)
-        .order('event_date', ascending: true)
-        .limit(10);
-
-    final recentAnnouncements = clubIds.isEmpty
-        ? []
-        : await supabase
-            .from('announcements')
-            .select('*, clubs(name)')
-            .eq('status', 'published')
-            .inFilter('club_id', clubIds)
-            .gte('created_at', todayStr)
-            .order('created_at', ascending: false)
-            .limit(5);
-
+    final upcomingEvents = await supabase.from('events').select('*, clubs(name)')
+        .gte('event_date', tomorrowStr).order('event_date', ascending: true).limit(10);
+    final recentAnnouncements = clubIds.isEmpty ? [] : await supabase.from('announcements')
+        .select('*, clubs(name)').eq('status', 'published').inFilter('club_id', clubIds)
+        .gte('created_at', todayStr).order('created_at', ascending: false).limit(5);
     final List<Map<String, dynamic>> notifs = [];
     for (final e in (upcomingEvents as List)) {
       final eventDate = DateTime.tryParse(e['event_date'] ?? '');
-      final dateStr   = eventDate != null
-          ? '${eventDate.year}.${eventDate.month.toString().padLeft(2,'0')}.${eventDate.day.toString().padLeft(2,'0')}'
-          : '';
-      notifs.add({
-        'type': 'event',
-        'title': 'Маргааш арга хэмжээ болно',
-        'body':  '${e['title'] ?? ''} — ${e['clubs']?['name'] ?? ''}',
-        'date':  dateStr,
-        'icon':  'event',
-        'raw':   e,
-      });
+      final dateStr = eventDate != null
+          ? '${eventDate.year}.${eventDate.month.toString().padLeft(2,'0')}.${eventDate.day.toString().padLeft(2,'0')}' : '';
+      notifs.add({'type': 'event', 'title': 'Маргааш арга хэмжээ болно',
+        'body': '${e['title'] ?? ''} — ${e['clubs']?['name'] ?? ''}',
+        'date': dateStr, 'icon': 'event', 'raw': e});
     }
     for (final a in (recentAnnouncements as List)) {
-      notifs.add({
-        'type':  'announcement',
+      notifs.add({'type': 'announcement',
         'title': (a['clubs']?['name'] ?? 'Шинэ мэдээ').toString(),
-        'body':  (a['title'] ?? '').toString(),
-        'date':  '',
-        'icon':  'announcement',
-        'raw':   a,
-      });
+        'body': (a['title'] ?? '').toString(), 'date': '', 'icon': 'announcement', 'raw': a});
+    }
+    // Бүх клубийн идэвхтэй санал асуулгыг авна (зөвхөн элссэн биш — бүх клуб)
+    List<Map<String, dynamic>> polls = [];
+    try {
+      final pollRows = await supabase.from('polls')
+          .select('*, clubs(name), poll_votes(option_id, user_id)')
+          .order('created_at', ascending: false)
+          .limit(20);
+      polls = List<Map<String, dynamic>>.from(pollRows as List);
+    } catch (e) {
+      debugPrint('Polls load алдаа: $e');
     }
 
-    if (mounted) {
-      setState(() {
-        _totalHours    = hours;
-        _announcements = List<Map<String, dynamic>>.from(announcements as List);
-        _events        = List<Map<String, dynamic>>.from(upcomingEvents as List);
-        _notifications = notifs;
-        _loading       = false;
-      });
-    }
+    if (mounted) setState(() {
+      _totalHours    = hours;
+      _announcements = List<Map<String, dynamic>>.from(announcements as List);
+      _events        = List<Map<String, dynamic>>.from(upcomingEvents as List);
+      _polls         = polls;
+      _notifications = notifs;
+      _loading       = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth    = context.watch<AuthProvider>();
-    final c       = context.watch<ThemeProvider>().colors;
-    final name    = (auth.profile?['full_name'] ?? '').toString();
-
+    final auth = context.watch<AuthProvider>();
+    final c    = context.watch<ThemeProvider>().colors;
+    final name = (auth.profile?['full_name'] ?? '').toString();
     return RefreshIndicator(
-      onRefresh: _load,
-      color: c.primary,
-      backgroundColor: c.bgCard,
+      onRefresh: _load, color: c.primary, backgroundColor: c.bgCard,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _GreetingHeader(
-              name:          name,
-              avatarUrl:     auth.profile?['avatar_url'],
-              c:             c,
-              auth:          auth,
-              notifications: _notifications,
-            ),
-            const SizedBox(height: 20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _GreetingHeader(name: name, avatarUrl: auth.profile?['avatar_url'],
+            c: c, auth: auth, notifications: _notifications),
+          const SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              LiquidGlassCard(
+                radius: 24,
+                blur: 22,
+                tintOpacity: 0.12,
+                onTap: () => Navigator.pushNamed(context, '/my-hours'),
+                padding: const EdgeInsets.all(20),
+                child: Row(children: [
+                  Container(width: 52, height: 52,
+                    decoration: BoxDecoration(
+                      color: c.primary.withOpacity(0.22),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: c.primary.withOpacity(0.35), width: 1)),
+                    child: Icon(Icons.volunteer_activism_rounded, color: c.primary, size: 26)),
+                  const SizedBox(width: 16),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Нийт сайн дурын цаг',
+                      style: TextStyle(fontSize: 12, color: c.textSecondary, fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 4),
+                    Text(_loading ? '...' : '${_totalHours.toStringAsFixed(1)} цаг',
+                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: c.textPrimary, height: 1.1)),
+                  ])),
+                  Container(width: 32, height: 32,
+                    decoration: BoxDecoration(
+                      color: c.primary.withOpacity(0.22),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: c.primary.withOpacity(0.35))),
+                    child: Icon(Icons.arrow_forward_rounded, color: c.primary, size: 16)),
+                ]),
+              ),
+              const SizedBox(height: 24),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Клубын үйл ажиллагаа', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: c.textPrimary)),
+                if (_announcements.isNotEmpty) Text('${_announcements.length} мэдээ', style: TextStyle(fontSize: 12, color: c.textMuted)),
+              ]),
+              const SizedBox(height: 12),
+              if (_loading)
+                Container(height: 180, decoration: BoxDecoration(color: c.bgCard, borderRadius: BorderRadius.circular(20)),
+                  child: Center(child: CircularProgressIndicator(color: c.primary, strokeWidth: 2)))
+              else if (_announcements.isEmpty)
+                Container(height: 90,
+                  decoration: BoxDecoration(color: c.bgCard, borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: c.border.withOpacity(0.3))),
+                  child: Center(child: Text('Клубын мэдээ байхгүй байна', style: TextStyle(color: c.textMuted, fontSize: 13))))
+              else
+                SizedBox(height: 200, child: PageView.builder(
+                  controller: _pageCtrl, itemCount: _announcements.length,
+                  itemBuilder: (_, i) => _AnnouncementCard(announcement: _announcements[i], index: i))),
+              const SizedBox(height: 24),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Арга хэмжээнүүд', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: c.textPrimary)),
+                if (_events.isNotEmpty) Text('${_events.length} арга хэмжээ', style: TextStyle(fontSize: 12, color: c.textMuted)),
+              ]),
+              const SizedBox(height: 12),
+              if (_loading)
+                Container(height: 100, decoration: BoxDecoration(color: c.bgCard, borderRadius: BorderRadius.circular(16)),
+                  child: Center(child: CircularProgressIndicator(color: c.teal, strokeWidth: 2)))
+              else if (_events.isEmpty)
+                Container(height: 90,
+                  decoration: BoxDecoration(color: c.bgCard, borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: c.border.withOpacity(0.3))),
+                  child: Center(child: Text('Ирэх арга хэмжээ байхгүй байна', style: TextStyle(color: c.textMuted, fontSize: 13))))
+              else
+                SizedBox(height: 130, child: PageView.builder(
+                  controller: _eventPageCtrl, itemCount: _events.length,
+                  itemBuilder: (_, i) => _EventCard(event: _events[i], c: c))),
 
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── Сайн дурын цаг ──────────────────────────
-                  GestureDetector(
-                    onTap: () => Navigator.pushNamed(context, '/my-hours'),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: c.accentGradient,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: c.primary.withOpacity(0.35),
-                            blurRadius: 20, offset: const Offset(0, 8), spreadRadius: -2),
-                        ],
-                        border: Border.all(color: c.primary.withOpacity(0.3), width: 1.5),
-                      ),
-                      child: Stack(
-                        children: [
-                          Positioned(top: -20, right: -10,
-                            child: Container(width: 100, height: 100,
-                              decoration: BoxDecoration(shape: BoxShape.circle,
-                                color: Colors.white.withOpacity(0.08)))),
-                          Positioned(bottom: -30, right: 40,
-                            child: Container(width: 80, height: 80,
-                              decoration: BoxDecoration(shape: BoxShape.circle,
-                                color: Colors.white.withOpacity(0.06)))),
-                          Row(
-                            children: [
-                              Container(
-                                width: 52, height: 52,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
-                                ),
-                                child: const Icon(Icons.volunteer_activism_rounded, color: Colors.white, size: 26),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Нийт сайн дурын цаг',
-                                      style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8), fontWeight: FontWeight.w500)),
-                                    const SizedBox(height: 4),
-                                    Text(_loading ? '...' : '${_totalHours.toStringAsFixed(1)} цаг',
-                                      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white, height: 1.1)),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                width: 32, height: 32,
-                                decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
-                                child: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 16),
-                              ),
-                            ],
-                          ),
-                        ],
+              // ── Санал асуулга — хажуу тийш гүйх бүх клубын polls ──────
+              const SizedBox(height: 24),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Санал асуулга',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: c.textPrimary)),
+                if (_polls.isNotEmpty)
+                  Text('${_polls.length} poll',
+                    style: TextStyle(fontSize: 12, color: c.textMuted)),
+              ]),
+              const SizedBox(height: 12),
+              if (_polls.isEmpty)
+                Container(height: 80,
+                  decoration: BoxDecoration(
+                    color: c.bgCard,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: c.border.withOpacity(0.3))),
+                  child: Center(child: Text('Санал асуулга байхгүй',
+                    style: TextStyle(color: c.textMuted, fontSize: 13))))
+              else
+                SizedBox(
+                  height: 240,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _polls.length,
+                    padding: const EdgeInsets.only(right: 8),
+                    itemBuilder: (_, i) => Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: SizedBox(
+                        width: MediaQuery.of(context).size.width * 0.82,
+                        child: _PollCard(
+                          poll: _polls[i],
+                          c: c,
+                          onVoted: _load,
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
-
-                  // ── Клубын үйл ажиллагаа ────────────────────
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Клубын үйл ажиллагаа',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: c.textPrimary)),
-                      if (_announcements.isNotEmpty)
-                        Text('${_announcements.length} мэдээ',
-                          style: TextStyle(fontSize: 12, color: c.textMuted)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  if (_loading)
-                    Container(height: 180,
-                      decoration: BoxDecoration(color: c.bgCard, borderRadius: BorderRadius.circular(20)),
-                      child: Center(child: CircularProgressIndicator(color: c.primary, strokeWidth: 2)))
-                  else if (_announcements.isEmpty)
-                    Container(height: 90,
-                      decoration: BoxDecoration(color: c.bgCard, borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: c.border.withOpacity(0.3))),
-                      child: Center(child: Text('Клубын мэдээ байхгүй байна',
-                        style: TextStyle(color: c.textMuted, fontSize: 13))))
-                  else
-                    SizedBox(height: 200,
-                      child: PageView.builder(
-                        controller: _pageCtrl,
-                        itemCount: _announcements.length,
-                        itemBuilder: (_, i) => _AnnouncementCard(announcement: _announcements[i], index: i),
-                      )),
-                  const SizedBox(height: 24),
-
-                  // ── Арга хэмжээнүүд ──────────────────────────
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Арга хэмжээнүүд',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: c.textPrimary)),
-                      if (_events.isNotEmpty)
-                        Text('${_events.length} арга хэмжээ',
-                          style: TextStyle(fontSize: 12, color: c.textMuted)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  if (_loading)
-                    Container(height: 100,
-                      decoration: BoxDecoration(color: c.bgCard, borderRadius: BorderRadius.circular(16)),
-                      child: Center(child: CircularProgressIndicator(color: c.teal, strokeWidth: 2)))
-                  else if (_events.isEmpty)
-                    Container(height: 90,
-                      decoration: BoxDecoration(color: c.bgCard, borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: c.border.withOpacity(0.3))),
-                      child: Center(child: Text('Ирэх арга хэмжээ байхгүй байна',
-                        style: TextStyle(color: c.textMuted, fontSize: 13))))
-                  else
-                    SizedBox(height: 130,
-                      child: PageView.builder(
-                        controller: _eventPageCtrl,
-                        itemCount: _events.length,
-                        itemBuilder: (_, i) => _EventCard(event: _events[i], c: c),
-                      )),
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
-          ],
-        ),
+                ),
+              const SizedBox(height: 20),
+            ]),
+          ),
+        ]),
       ),
     );
   }
 }
 
-// ── Announcement Card ────────────────────────────────────────
-class _AnnouncementCard extends StatelessWidget {
-  final Map<String, dynamic> announcement;
-  final int index;
-  const _AnnouncementCard({required this.announcement, required this.index});
+// ══════════════════════════════════════════════════════════════
+// POLL CARD — Хэрэглэгч санал өгөх + үр дүн харах widget
+// ══════════════════════════════════════════════════════════════
+class _PollCard extends StatefulWidget {
+  final Map<String, dynamic> poll;
+  final ThemeColors c;
+  final VoidCallback onVoted;
+  const _PollCard({required this.poll, required this.c, required this.onVoted});
+  @override
+  State<_PollCard> createState() => _PollCardState();
+}
 
+class _PollCardState extends State<_PollCard> {
+  bool _voting = false;
+
+  String? get _myUid => supabase.auth.currentUser?.id;
+
+  String? get _myVote {
+    final votes = (widget.poll['poll_votes'] as List?) ?? [];
+    for (final v in votes) {
+      if (v['user_id'] == _myUid) return v['option_id'] as String?;
+    }
+    return null;
+  }
+
+  Future<void> _vote(String optionId) async {
+    if (_voting || _myUid == null) return;
+    setState(() => _voting = true);
+    try {
+      // Upsert санал — нэг хэрэглэгч 1 санал л өгнө (poll_id + user_id unique)
+      await supabase.from('poll_votes').upsert({
+        'poll_id':   widget.poll['id'],
+        'user_id':   _myUid,
+        'option_id': optionId,
+      }, onConflict: 'poll_id,user_id');
+      widget.onVoted();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Алдаа: $e')));
+    } finally {
+      if (mounted) setState(() => _voting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.c;
+    final clubName = (widget.poll['clubs']?['name'] ?? '').toString();
+    final question = (widget.poll['question'] ?? '').toString();
+    final options  = (widget.poll['options'] as List?) ?? [];
+    final votes    = (widget.poll['poll_votes'] as List?) ?? [];
+    final myVote   = _myVote;
+    final hasVoted = myVote != null;
+    final total    = votes.length;
+
+    final counts = <String, int>{};
+    for (final v in votes) {
+      final oid = v['option_id'] as String?;
+      if (oid != null) counts[oid] = (counts[oid] ?? 0) + 1;
+    }
+
+    return LiquidGlassCard(
+      padding: const EdgeInsets.all(14),
+      radius: 18,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Клубын нэр (top)
+        Row(children: [
+          Container(width: 26, height: 26,
+            decoration: BoxDecoration(
+              color: const Color(0xFFB06BFF).withOpacity(0.18),
+              borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.poll_rounded, color: Color(0xFFB06BFF), size: 14)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(clubName,
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFFB06BFF)))),
+          Text('$total санал', style: TextStyle(fontSize: 11, color: c.textMuted)),
+        ]),
+        const SizedBox(height: 10),
+        Text(question,
+          maxLines: 2, overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.textPrimary)),
+        const SizedBox(height: 10),
+        Expanded(child: ListView.builder(
+          padding: EdgeInsets.zero,
+          itemCount: options.length,
+          itemBuilder: (_, i) {
+            final opt = options[i] as Map<String, dynamic>;
+            final id = opt['id'] as String;
+            final label = opt['label'] as String? ?? '';
+            final count = counts[id] ?? 0;
+            final pct = total == 0 ? 0.0 : count / total;
+            final isMine = id == myVote;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: GestureDetector(
+                onTap: hasVoted ? null : () => _vote(id),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: c.surface,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isMine ? c.primary : c.border.withOpacity(0.2),
+                      width: isMine ? 1.5 : 1),
+                  ),
+                  child: Stack(children: [
+                    if (hasVoted)
+                      Positioned.fill(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: FractionallySizedBox(
+                            alignment: Alignment.centerLeft,
+                            widthFactor: pct,
+                            child: Container(
+                              color: (isMine ? c.primary : c.textMuted).withOpacity(0.18)),
+                          ),
+                        ),
+                      ),
+                    Row(children: [
+                      Expanded(child: Text(label,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, color: c.textPrimary,
+                          fontWeight: isMine ? FontWeight.w700 : FontWeight.w500))),
+                      if (hasVoted)
+                        Text('${(pct * 100).toStringAsFixed(0)}%',
+                          style: TextStyle(fontSize: 12, color: c.textMuted, fontWeight: FontWeight.w700)),
+                    ]),
+                  ]),
+                ),
+              ),
+            );
+          },
+        )),
+        if (!hasVoted && _voting)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Center(child: SizedBox(width: 16, height: 16,
+              child: CircularProgressIndicator(color: c.primary, strokeWidth: 2)))),
+      ]),
+    );
+  }
+}
+
+class _AnnouncementCard extends StatelessWidget {
+  final Map<String, dynamic> announcement; final int index;
+  const _AnnouncementCard({required this.announcement, required this.index});
   static const _gradients = [
     [Color(0xFF6C63FF), Color(0xFF00D4FF)],
     [Color(0xFFB06BFF), Color(0xFFFF6EC7)],
@@ -654,107 +915,285 @@ class _AnnouncementCard extends StatelessWidget {
     [Color(0xFF5B54E8), Color(0xFFB06BFF)],
   ];
 
+  void _showDetail(BuildContext context) {
+    final tp = context.read<ThemeProvider>();
+    showModalBottomSheet(context: context, isScrollControlled: true, useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.92),
+      builder: (_) => ChangeNotifierProvider.value(value: tp,
+        child: _AnnouncementDetailSheet(announcement: announcement, index: index)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final title    = announcement['title'] ?? '';
     final content  = announcement['content'] ?? '';
     final clubName = announcement['clubs']?['name'] ?? '';
     final imageUrl = announcement['image_url'] as String?;
-    final createdAt = announcement['created_at'] != null
-        ? DateTime.tryParse(announcement['created_at'])?.toLocal() : null;
-    final dateStr = createdAt != null
-        ? '${createdAt.year}.${createdAt.month.toString().padLeft(2,'0')}.${createdAt.day.toString().padLeft(2,'0')}' : '';
+    final createdAt = announcement['created_at'] != null ? DateTime.tryParse(announcement['created_at'])?.toLocal() : null;
+    final dateStr = createdAt != null ? '${createdAt.year}.${createdAt.month.toString().padLeft(2,'0')}.${createdAt.day.toString().padLeft(2,'0')}' : '';
     final grad = _gradients[index % _gradients.length];
-
-    return Container(
-      margin: const EdgeInsets.only(right: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Color(grad[0].value).withOpacity(0.25), blurRadius: 16, offset: const Offset(0, 6))],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Stack(fit: StackFit.expand, children: [
-          if (imageUrl != null && imageUrl.isNotEmpty)
-            Image.network(imageUrl, fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: grad))))
-          else
-            Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: grad))),
-          Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter,
-            colors: [Colors.transparent, Colors.black.withOpacity(0.72)]))),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.end, children: [
-              if (clubName.isNotEmpty)
-                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
-                  child: Text(clubName, style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w600))),
-              const SizedBox(height: 6),
-              Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
-              const SizedBox(height: 4),
-              Text(content, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8))),
-              if (dateStr.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(dateStr, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.6))),
-              ],
-            ]),
-          ),
-        ]),
+    return GestureDetector(
+      onTap: () => _showDetail(context),
+      child: Container(
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.18), width: 1),
+          boxShadow: [
+            BoxShadow(color: Color(grad[0].value).withOpacity(0.22), blurRadius: 20, offset: const Offset(0, 8)),
+            BoxShadow(color: Colors.black.withOpacity(0.18), blurRadius: 16, offset: const Offset(0, 6)),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(fit: StackFit.expand, children: [
+            if (imageUrl != null && imageUrl.isNotEmpty)
+              Image.network(imageUrl, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: grad))))
+            else
+              Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: grad))),
+            // Frosted glass panel at the bottom for the text
+            Positioned(
+              left: 0, right: 0, bottom: 0,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.25),
+                      border: Border(top: BorderSide(color: Colors.white.withOpacity(0.18), width: 1)),
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                      if (clubName.isNotEmpty)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.white.withOpacity(0.25), width: 0.8),
+                              ),
+                              child: Text(clubName, style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w600)),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 6),
+                      Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+                      const SizedBox(height: 4),
+                      Text(content, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.85))),
+                      if (dateStr.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(dateStr, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.65))),
+                      ],
+                    ]),
+                  ),
+                ),
+              ),
+            ),
+            // Glass tap hint chip — top right
+            Positioned(
+              top: 14, right: 14,
+              child: ClipOval(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.18),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.3), width: 0.8),
+                    ),
+                    child: const Icon(Icons.open_in_full_rounded, size: 14, color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+          ]),
+        ),
       ),
     );
   }
 }
 
-// ── Event Card ───────────────────────────────────────────────
-class _EventCard extends StatelessWidget {
-  final Map<String, dynamic> event;
-  final ThemeColors c;
-  const _EventCard({required this.event, required this.c});
+// ─────────────────────────────────────────────────────────────
+// ANNOUNCEMENT DETAIL SHEET — мэдээллийг бүтэн харах bottom sheet
+// ─────────────────────────────────────────────────────────────
+class _AnnouncementDetailSheet extends StatefulWidget {
+  final Map<String, dynamic> announcement;
+  final int index;
+  const _AnnouncementDetailSheet({required this.announcement, required this.index});
+  @override
+  State<_AnnouncementDetailSheet> createState() => _AnnouncementDetailSheetState();
+}
 
-  void _showDetail(BuildContext context) {
-    final tp = context.read<ThemeProvider>();
-    showModalBottomSheet(
-      context: context, isScrollControlled: true, useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => ChangeNotifierProvider.value(value: tp, child: _EventDetailSheet(event: event)),
-    );
+class _AnnouncementDetailSheetState extends State<_AnnouncementDetailSheet> {
+  late PageController _imgCtrl;
+  @override
+  void initState() { super.initState(); _imgCtrl = PageController(); }
+  @override
+  void dispose() { _imgCtrl.dispose(); super.dispose(); }
+
+  List<String> get _images {
+    final List<String> imgs = [];
+    final main = widget.announcement['image_url'] as String?;
+    if (main != null && main.isNotEmpty) imgs.add(main);
+    final extra = widget.announcement['extra_images'];
+    if (extra is List) {
+      for (final img in extra) {
+        if (img is String && img.isNotEmpty) imgs.add(img);
+      }
+    }
+    return imgs;
   }
 
   @override
   Widget build(BuildContext context) {
+    final c        = context.watch<ThemeProvider>().colors;
+    final title    = widget.announcement['title'] ?? '';
+    final content  = widget.announcement['content'] ?? '';
+    final clubName = (widget.announcement['clubs'] as Map?)?['name'] ?? '';
+    final createdAt = widget.announcement['created_at'] != null
+        ? DateTime.tryParse(widget.announcement['created_at'])?.toLocal()
+        : null;
+    final dateStr = createdAt != null
+        ? '${createdAt.year}.${createdAt.month.toString().padLeft(2,'0')}.${createdAt.day.toString().padLeft(2,'0')}'
+        : '';
+    final imgs = _images;
+    final imgH = MediaQuery.of(context).size.height * 0.42;
+    final grad = _AnnouncementCard._gradients[widget.index % _AnnouncementCard._gradients.length];
+
+    return Container(
+      decoration: BoxDecoration(color: c.bgCard, borderRadius: const BorderRadius.vertical(top: Radius.circular(28))),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Center(child: Container(
+          width: 36, height: 4, margin: const EdgeInsets.only(top: 10),
+          decoration: BoxDecoration(color: c.border, borderRadius: BorderRadius.circular(2)))),
+        // ── Image carousel эсвэл gradient hero ───────────────
+        SizedBox(
+          height: imgH,
+          child: Stack(children: [
+            if (imgs.isNotEmpty)
+              PageView.builder(
+                controller: _imgCtrl, itemCount: imgs.length,
+                itemBuilder: (_, pi) => ClipRRect(
+                  borderRadius: pi == 0 ? const BorderRadius.vertical(top: Radius.circular(28)) : BorderRadius.zero,
+                  child: Image.network(imgs[pi], width: double.infinity, height: imgH, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _gradHero(grad, imgH))),
+              )
+            else
+              _gradHero(grad, imgH),
+            if (imgs.length > 1) ...[
+              Positioned(top: 14, right: 14,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.black.withOpacity(0.45), borderRadius: BorderRadius.circular(20)),
+                  child: AnimatedBuilder(animation: _imgCtrl, builder: (_, __) {
+                    final cur = _imgCtrl.hasClients && _imgCtrl.page != null ? (_imgCtrl.page!.round() + 1) : 1;
+                    return Text('$cur / ${imgs.length}', style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600));
+                  }))),
+              Positioned(bottom: 14, left: 0, right: 0,
+                child: AnimatedBuilder(animation: _imgCtrl, builder: (_, __) {
+                  final cur = _imgCtrl.hasClients && _imgCtrl.page != null ? _imgCtrl.page!.round() : 0;
+                  return Row(mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(imgs.length, (pi) => AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: cur == pi ? 18 : 6, height: 6,
+                      decoration: BoxDecoration(color: cur == pi ? Colors.white : Colors.white.withOpacity(0.45), borderRadius: BorderRadius.circular(3)))));
+                })),
+            ],
+          ]),
+        ),
+        // ── Content ─────────────────────────────────────────
+        Flexible(child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(20, 18, 20, MediaQuery.of(context).padding.bottom + 24),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              if (dateStr.isNotEmpty) Text(dateStr,
+                style: TextStyle(fontSize: 13, color: c.textMuted, fontWeight: FontWeight.w500)),
+              const Spacer(),
+              if ((clubName as String).isNotEmpty)
+                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: c.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: c.primary.withOpacity(0.25))),
+                  child: Text(clubName,
+                    style: TextStyle(fontSize: 11, color: c.primary, fontWeight: FontWeight.w600))),
+            ]),
+            const SizedBox(height: 10),
+            Text(title as String,
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: c.textPrimary, height: 1.3)),
+            const SizedBox(height: 12),
+            _InfoChipSmall(icon: Icons.campaign_rounded, label: 'Мэдээлэл', color: c.accent),
+            if ((content as String).isNotEmpty) ...[
+              const SizedBox(height: 18),
+              Text('Дэлгэрэнгүй',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.textPrimary)),
+              const SizedBox(height: 8),
+              Text(content,
+                style: TextStyle(fontSize: 14, color: c.textSecondary, height: 1.7)),
+            ],
+          ]))),
+      ]),
+    );
+  }
+
+  Widget _gradHero(List<Color> grad, double h) => Container(
+    height: h,
+    decoration: BoxDecoration(
+      gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: grad),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+    ),
+    alignment: Alignment.center,
+    child: const Icon(Icons.campaign_rounded, color: Colors.white70, size: 64),
+  );
+}
+
+class _EventCard extends StatelessWidget {
+  final Map<String, dynamic> event; final ThemeColors c;
+  const _EventCard({required this.event, required this.c});
+  void _showDetail(BuildContext context) {
+    final tp = context.read<ThemeProvider>();
+    showModalBottomSheet(context: context, isScrollControlled: true, useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.92),
+      builder: (_) => ChangeNotifierProvider.value(value: tp, child: _EventDetailSheet(event: event)));
+  }
+  @override
+  Widget build(BuildContext context) {
     final title    = event['title'] ?? '';
-    final clubName = event['clubs']?['name'] ?? '';
+    final clubName = (event['clubs'] as Map?)?['name'] ?? '';
     final location = event['location'] ?? '';
     final hours    = event['hours'];
     final dateRaw  = event['event_date'];
     final imageUrl = event['image_url'] as String?;
     String dateStr = '';
     if (dateRaw != null) {
-      final d = DateTime.tryParse(dateRaw)?.toLocal();
+      final d = DateTime.tryParse(dateRaw as String)?.toLocal();
       if (d != null) dateStr = '${d.year}.${d.month.toString().padLeft(2,'0')}.${d.day.toString().padLeft(2,'0')}';
     }
     final parts = dateStr.isNotEmpty ? dateStr.split('.') : <String>[];
-
-    return GestureDetector(
+    return LiquidGlassCard(
+      margin: const EdgeInsets.only(right: 12),
+      radius: 20,
+      tintOpacity: 0.08,
       onTap: () => _showDetail(context),
-      child: Container(
-        margin: const EdgeInsets.only(right: 12),
-        decoration: BoxDecoration(
-          color: c.bgCard, borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: c.teal.withOpacity(0.25)),
-          boxShadow: [BoxShadow(color: c.teal.withOpacity(0.1), blurRadius: 12, offset: const Offset(0, 4))],
-        ),
-        child: Row(children: [
+      child: Row(children: [
           ClipRRect(
             borderRadius: const BorderRadius.horizontal(left: Radius.circular(20)),
             child: imageUrl != null && imageUrl.isNotEmpty
                 ? Image.network(imageUrl, width: 90, height: double.infinity, fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => _buildDateBox(parts, c))
-                : _buildDateBox(parts, c),
-          ),
+                : _buildDateBox(parts, c)),
           const SizedBox(width: 12),
           Expanded(child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 14),
@@ -762,51 +1201,41 @@ class _EventCard extends StatelessWidget {
               Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: c.textPrimary),
                 maxLines: 1, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 4),
-              if (clubName.isNotEmpty)
+              if ((clubName as String).isNotEmpty)
                 Text(clubName, style: TextStyle(fontSize: 12, color: c.textMuted), maxLines: 1, overflow: TextOverflow.ellipsis),
-              if (location.isNotEmpty) ...[
+              if ((location as String).isNotEmpty) ...[
                 const SizedBox(height: 3),
                 Row(children: [
                   Icon(Icons.location_on_outlined, size: 12, color: c.textMuted),
                   const SizedBox(width: 2),
-                  Expanded(child: Text(location, style: TextStyle(fontSize: 11, color: c.textMuted),
-                    maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  Expanded(child: Text(location, style: TextStyle(fontSize: 11, color: c.textMuted), maxLines: 1, overflow: TextOverflow.ellipsis)),
                 ]),
               ],
-            ]),
-          )),
+            ]))),
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               if (hours != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(color: c.teal.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
                   child: Text('${hours}ц', style: TextStyle(fontSize: 12, color: c.teal, fontWeight: FontWeight.w700))),
               const SizedBox(height: 6),
               Icon(Icons.arrow_forward_ios_rounded, size: 12, color: c.textMuted),
-            ]),
-          ),
+            ])),
         ]),
-      ),
     );
   }
-
   Widget _buildDateBox(List<String> parts, ThemeColors c) => Container(
-    width: 64, height: double.infinity,
-    color: c.teal.withOpacity(0.12),
+    width: 64, height: double.infinity, color: c.teal.withOpacity(0.12),
     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       if (parts.length == 3) ...[
         Text(parts[2], style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: c.teal, height: 1)),
         Text('${parts[1]}/${parts[0].length >= 2 ? parts[0].substring(2) : parts[0]}',
           style: TextStyle(fontSize: 10, color: c.teal.withOpacity(0.8))),
-      ] else
-        Icon(Icons.event_rounded, color: c.teal, size: 24),
-    ]),
-  );
+      ] else Icon(Icons.event_rounded, color: c.teal, size: 24),
+    ]));
 }
 
-// ── Event Detail Sheet — дугуй progress + зураг ─────────────
 class _EventDetailSheet extends StatefulWidget {
   final Map<String, dynamic> event;
   const _EventDetailSheet({required this.event});
@@ -814,237 +1243,139 @@ class _EventDetailSheet extends StatefulWidget {
   State<_EventDetailSheet> createState() => _EventDetailSheetState();
 }
 
-class _EventDetailSheetState extends State<_EventDetailSheet>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _anim;
-
+class _EventDetailSheetState extends State<_EventDetailSheet> {
+  late PageController _imgCtrl;
   @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
-    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
-    _ctrl.forward();
+  void initState() { super.initState(); _imgCtrl = PageController(); }
+  @override
+  void dispose() { _imgCtrl.dispose(); super.dispose(); }
+  List<String> get _images {
+    final List<String> imgs = [];
+    final main = widget.event['image_url'] as String?;
+    if (main != null && main.isNotEmpty) imgs.add(main);
+    final extra = widget.event['extra_images'];
+    if (extra is List) { for (final img in extra) { if (img is String && img.isNotEmpty) imgs.add(img); } }
+    if (imgs.isEmpty) imgs.add('');
+    return imgs;
   }
-
-  @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
-
   @override
   Widget build(BuildContext context) {
     final c        = context.watch<ThemeProvider>().colors;
     final title    = widget.event['title'] ?? '';
     final desc     = widget.event['description'] ?? '';
-    final clubName = widget.event['clubs']?['name'] ?? '';
+    final clubName = (widget.event['clubs'] as Map?)?['name'] ?? '';
     final location = widget.event['location'] ?? '';
     final hours    = widget.event['hours'];
-    final imageUrl = widget.event['image_url'] as String?;
     final dateRaw  = widget.event['event_date'];
     String dateStr = '';
     if (dateRaw != null) {
-      final d = DateTime.tryParse(dateRaw)?.toLocal();
+      final d = DateTime.tryParse(dateRaw as String)?.toLocal();
       if (d != null) dateStr = '${d.year}.${d.month.toString().padLeft(2,'0')}.${d.day.toString().padLeft(2,'0')}';
     }
-    final initial = title.isNotEmpty ? title[0] : '?';
-
-    // Blob color from theme
-    final blobColor = c.primary.withOpacity(0.18);
-    final blobColor2 = c.accent.withOpacity(0.12);
-
+    final imgs = _images; final imgH = MediaQuery.of(context).size.height * 0.46;
     return Container(
-      decoration: BoxDecoration(
-        color: c.bgCard,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      child: SingleChildScrollView(
-        child: Column(children: [
-          // Handle
-          Center(child: Container(width: 36, height: 4,
-            margin: const EdgeInsets.only(top: 12, bottom: 16),
-            decoration: BoxDecoration(color: c.border, borderRadius: BorderRadius.circular(2)))),
-
-          // Date header
-          if (dateStr.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(children: [
-                Text(dateStr,
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: c.textPrimary)),
-                const Spacer(),
-                if (clubName.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: c.primary.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: c.primary.withOpacity(0.25))),
-                    child: Text(clubName,
-                      style: TextStyle(fontSize: 12, color: c.primary, fontWeight: FontWeight.w600))),
-              ]),
-            ),
-
-          const SizedBox(height: 24),
-
-          // Blob with animated ring + image background
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: AspectRatio(
-              aspectRatio: 1,
-              child: Stack(alignment: Alignment.center, children: [
-                // Blob background (event image or gradient)
-                ClipOval(
-                  child: imageUrl != null && imageUrl.isNotEmpty
-                      ? Image.network(imageUrl, fit: BoxFit.cover, width: double.infinity, height: double.infinity,
-                          errorBuilder: (_, __, ___) => Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft, end: Alignment.bottomRight,
-                                colors: [c.primary.withOpacity(0.3), c.accent.withOpacity(0.2)]))))
-                      : Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft, end: Alignment.bottomRight,
-                              colors: [c.primary.withOpacity(0.25), c.accent.withOpacity(0.15)]))),
-                ),
-
-                // Dark overlay
-                ClipOval(child: Container(
-                  color: Colors.black.withOpacity(imageUrl != null ? 0.45 : 0.1))),
-
-                // Animated ring
-                AnimatedBuilder(
-                  animation: _anim,
-                  builder: (_, __) => CustomPaint(
-                    size: Size.infinite,
-                    painter: _RingPainter(
-                      progress: _anim.value,
-                      color: c.primary,
-                      trackColor: Colors.white.withOpacity(0.15),
-                      strokeWidth: 5,
-                    ),
-                  ),
-                ),
-
-                // Center content
-                Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Text(title,
-                      textAlign: TextAlign.center,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: imageUrl != null ? Colors.white : c.textPrimary,
-                        height: 1.3)),
-                    const SizedBox(height: 12),
-                    if (hours != null)
-                      Text('$hours цаг',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: imageUrl != null ? Colors.white70 : c.teal)),
-                    if (location.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Icon(Icons.location_on_outlined, size: 13,
-                          color: imageUrl != null ? Colors.white60 : c.coral),
-                        const SizedBox(width: 3),
-                        Flexible(child: Text(location,
-                          textAlign: TextAlign.center,
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 12,
-                            color: imageUrl != null ? Colors.white60 : c.coral))),
-                      ]),
-                    ],
-                  ]),
-                ),
-              ]),
-            ),
-          ),
-
-          // Description
-          if (desc.isNotEmpty)
-            Padding(
-              padding: EdgeInsets.fromLTRB(20, 24, 20, MediaQuery.of(context).padding.bottom + 28),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Тайлбар',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.textPrimary)),
-                const SizedBox(height: 8),
-                Text(desc, style: TextStyle(fontSize: 14, color: c.textSecondary, height: 1.6)),
-              ]),
-            )
-          else
-            SizedBox(height: MediaQuery.of(context).padding.bottom + 28),
-        ]),
-      ),
+      decoration: BoxDecoration(color: c.bgCard, borderRadius: const BorderRadius.vertical(top: Radius.circular(28))),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Center(child: Container(width: 36, height: 4, margin: const EdgeInsets.only(top: 10),
+          decoration: BoxDecoration(color: c.border, borderRadius: BorderRadius.circular(2)))),
+        SizedBox(height: imgH,
+          child: Stack(children: [
+            PageView.builder(controller: _imgCtrl, itemCount: imgs.length,
+              itemBuilder: (_, pi) {
+                final url = imgs[pi];
+                return ClipRRect(
+                  borderRadius: pi == 0 ? const BorderRadius.vertical(top: Radius.circular(28)) : BorderRadius.zero,
+                  child: url.isNotEmpty
+                      ? Image.network(url, width: double.infinity, height: imgH, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _gradBg(c, imgH))
+                      : _gradBg(c, imgH));
+              }),
+            if (imgs.length > 1)
+              Positioned(top: 14, right: 14,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.black.withOpacity(0.45), borderRadius: BorderRadius.circular(20)),
+                  child: AnimatedBuilder(animation: _imgCtrl, builder: (_, __) {
+                    final cur = _imgCtrl.hasClients && _imgCtrl.page != null ? (_imgCtrl.page!.round() + 1) : 1;
+                    return Text('$cur / ${imgs.length}', style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600));
+                  }))),
+            if (imgs.length > 1)
+              Positioned(bottom: 14, left: 0, right: 0,
+                child: AnimatedBuilder(animation: _imgCtrl, builder: (_, __) {
+                  final cur = _imgCtrl.hasClients && _imgCtrl.page != null ? _imgCtrl.page!.round() : 0;
+                  return Row(mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(imgs.length, (pi) => AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: cur == pi ? 18 : 6, height: 6,
+                      decoration: BoxDecoration(color: cur == pi ? Colors.white : Colors.white.withOpacity(0.45), borderRadius: BorderRadius.circular(3)))));
+                })),
+          ])),
+        Flexible(child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(20, 18, 20, MediaQuery.of(context).padding.bottom + 24),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              if (dateStr.isNotEmpty) Text(dateStr, style: TextStyle(fontSize: 13, color: c.textMuted, fontWeight: FontWeight.w500)),
+              const Spacer(),
+              if ((clubName as String).isNotEmpty)
+                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: c.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: c.primary.withOpacity(0.25))),
+                  child: Text(clubName, style: TextStyle(fontSize: 11, color: c.primary, fontWeight: FontWeight.w600))),
+            ]),
+            const SizedBox(height: 8),
+            Text(title as String, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: c.textPrimary, height: 1.3)),
+            const SizedBox(height: 12),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              _InfoChipSmall(icon: Icons.event_rounded, label: 'Арга хэмжээ', color: c.primary),
+              if (hours != null) _InfoChipSmall(icon: Icons.access_time_rounded, label: '$hours цаг', color: c.teal),
+              if ((location as String).isNotEmpty) _InfoChipSmall(icon: Icons.location_on_outlined, label: location, color: c.coral),
+            ]),
+            if ((desc as String).isNotEmpty) ...[
+              const SizedBox(height: 18),
+              Text('Тайлбар', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.textPrimary)),
+              const SizedBox(height: 8),
+              Text(desc, style: TextStyle(fontSize: 14, color: c.textSecondary, height: 1.7)),
+            ],
+          ]))),
+      ]),
     );
   }
-
-  Widget _bgPlaceholder(ThemeColors c, String initial) => Container(
-    width: double.infinity, height: 220,
-    decoration: BoxDecoration(gradient: c.headerGradient),
-    child: Center(child: Text(initial,
-      style: const TextStyle(fontSize: 72, color: Colors.white24, fontWeight: FontWeight.w900))),
-  );
-
-  Widget _chip(ThemeColors c, IconData icon, String label, Color color) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.1),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: color.withOpacity(0.25))),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 14, color: color),
-      const SizedBox(width: 6),
-      Text(label, style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w600)),
-    ]),
-  );
-
-  Widget _glassChip(IconData icon, String label) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-    decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.18),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: Colors.white.withOpacity(0.3))),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 12, color: Colors.white),
-      const SizedBox(width: 5),
-      Text(label, style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w600)),
-    ]),
-  );
+  Widget _gradBg(ThemeColors c, double h) => Container(height: h,
+    decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+      colors: [c.primary.withOpacity(0.5), c.accent.withOpacity(0.35)])));
 }
 
-// ── Ring painter ──────────────────────────────────────────────
+class _InfoChipSmall extends StatelessWidget {
+  final IconData icon; final String label; final Color color;
+  const _InfoChipSmall({required this.icon, required this.label, required this.color});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: color.withOpacity(0.25))),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 12, color: color), const SizedBox(width: 4),
+      Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+    ]));
+}
+
 class _RingPainter extends CustomPainter {
-  final double progress;
-  final Color color;
-  final Color trackColor;
-  final double strokeWidth;
-
-  const _RingPainter({
-    required this.progress,
-    required this.color,
-    required this.trackColor,
-    this.strokeWidth = 6,
-  });
-
+  final double progress; final Color color, trackColor; final double strokeWidth;
+  const _RingPainter({required this.progress, required this.color, required this.trackColor, this.strokeWidth = 6});
   @override
   void paint(Canvas canvas, Size size) {
-    final cx     = size.width / 2;
-    final cy     = size.height / 2;
+    final cx = size.width / 2; final cy = size.height / 2;
     final radius = (size.width - strokeWidth) / 2;
     final rect   = Rect.fromCircle(center: Offset(cx, cy), radius: radius);
     final paint  = Paint()..style = PaintingStyle.stroke..strokeCap = StrokeCap.round..strokeWidth = strokeWidth;
-
     canvas.drawArc(rect, -1.5708, 6.2832, false, paint..color = trackColor);
     canvas.drawArc(rect, -1.5708, 6.2832 * progress, false, paint..color = color);
   }
-
   @override
   bool shouldRepaint(_RingPainter old) => old.progress != progress;
 }
+
 
 // ═══════════════════════════════════════════════════════════
 // TAB 2: Миний клубүүд
@@ -1058,154 +1389,98 @@ class _MyClubsTab extends StatefulWidget {
 class _MyClubsTabState extends State<_MyClubsTab> {
   List<Map<String, dynamic>> _memberships = [];
   bool _loading = true;
-
   @override
   void initState() { super.initState(); _load(); }
-
   Future<void> _load() async {
     final uid = supabase.auth.currentUser?.id;
     if (uid == null) return;
-    final res = await supabase
-        .from('club_memberships')
+    final res = await supabase.from('club_memberships')
         .select('*, clubs(id, name, category, logo_url, avg_rating, member_count)')
-        .eq('user_id', uid)
-        .eq('status', 'approved')
-        .order('joined_at', ascending: false);
+        .eq('user_id', uid).eq('status', 'approved').order('joined_at', ascending: false);
     if (mounted) setState(() { _memberships = List<Map<String, dynamic>>.from(res); _loading = false; });
   }
-
   @override
   Widget build(BuildContext context) {
     final c = context.watch<ThemeProvider>().colors;
-    return RefreshIndicator(
-      onRefresh: _load,
-      color: c.primary,
-      child: _loading
-          ? const LoadingView()
+    return RefreshIndicator(onRefresh: _load, color: c.primary,
+      child: _loading ? const LoadingView()
           : _memberships.isEmpty
-              ? const EmptyState(
-                  message: 'Элссэн клуб байхгүй байна.\nКлубүүд tab-аас элсэх хүсэлт илгээгээрэй.',
-                  icon: Icons.groups_outlined)
-              : _MyClubsHeader(memberships: _memberships, c: c),
-    );
+              ? const EmptyState(message: 'Элссэн клуб байхгүй байна.\nКлубүүд tab-аас элсэх хүсэлт илгээгээрэй.', icon: Icons.groups_outlined)
+              : _MyClubsHeader(memberships: _memberships, c: c));
   }
 }
 
-// ── My Clubs Header — grid layout ───────────────────────────
 class _MyClubsHeader extends StatelessWidget {
-  final List<Map<String, dynamic>> memberships;
-  final ThemeColors c;
+  final List<Map<String, dynamic>> memberships; final ThemeColors c;
   const _MyClubsHeader({required this.memberships, required this.c});
-
   @override
   Widget build(BuildContext context) {
-    final grads = [
-      c.accentGradient,
-      c.headerGradient,
-      LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [c.teal, c.primary]),
-      LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [c.coral, c.accent]),
-      LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [c.primary, c.teal]),
-      LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [c.accent, c.primary]),
-    ];
-
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Title row
           Row(children: [
-            Text('Миний клубүүд',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.textPrimary)),
+            Text('Миний клубүүд', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.textPrimary)),
             const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-              decoration: BoxDecoration(
-                color: c.primary.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(20)),
-              child: Text('${memberships.length} клуб',
-                style: TextStyle(fontSize: 12, color: c.primary, fontWeight: FontWeight.w600))),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(color: c.primary.withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
+              child: Text('${memberships.length} клуб', style: TextStyle(fontSize: 12, color: c.primary, fontWeight: FontWeight.w600))),
           ]),
           const SizedBox(height: 20),
-
-            // Grid 2 columns
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.1,
-              ),
-              itemCount: memberships.length,
-              itemBuilder: (_, i) {
-                final club = memberships[i]['clubs'] as Map<String, dynamic>;
-                return GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, '/club-detail', arguments: club['id']),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: grads[i % grads.length],
-                      borderRadius: BorderRadius.circular(22),
-                      boxShadow: [BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
-                        blurRadius: 12, offset: const Offset(0, 4))],
-                    ),
-                    padding: const EdgeInsets.all(16),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      // Icon
-                      Container(
-                        width: 44, height: 44,
+          GridView.builder(
+            shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.1),
+            itemCount: memberships.length,
+            itemBuilder: (_, i) {
+              final club = memberships[i]['clubs'] as Map<String, dynamic>;
+              return LiquidGlassCard(
+                radius: 22,
+                blur: 22,
+                tintOpacity: 0.12,
+                onTap: () => Navigator.pushNamed(context, '/club-detail', arguments: club['id']),
+                padding: const EdgeInsets.all(16),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    Container(width: 44, height: 44,
+                      decoration: BoxDecoration(
+                        gradient: c.accentGradient,
+                        borderRadius: BorderRadius.circular(13)),
+                      child: const Icon(Icons.groups_rounded, color: Colors.white, size: 22)),
+                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(club['name'] ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.textPrimary),
+                        maxLines: 2, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 6),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.22),
-                          borderRadius: BorderRadius.circular(13)),
-                        child: const Icon(Icons.groups_rounded, color: Colors.white, size: 22)),
-
-                      // Name + category
-                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(club['name'] ?? '',
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
-                          maxLines: 2, overflow: TextOverflow.ellipsis),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(8)),
-                          child: Text(club['category'] ?? '',
-                            style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w500))),
-                      ]),
+                          color: c.primary.withOpacity(0.16),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: c.primary.withOpacity(0.25))),
+                        child: Text(club['category'] ?? '', style: TextStyle(fontSize: 10, color: c.primary, fontWeight: FontWeight.w600))),
                     ]),
-                  ),
-                );
-              },
-            ),
+                  ]),
+              );
+            },
+          ),
         ]),
       ),
     );
   }
 }
 
-
 // ─────────────────────────────────────────────────────────────
-// THEME PICKER SHEET
+// THEME PICKER
 // ─────────────────────────────────────────────────────────────
 class _ThemePickerSheet extends StatelessWidget {
   const _ThemePickerSheet();
-
   @override
   Widget build(BuildContext context) {
-    final tp      = context.watch<ThemeProvider>();
-    final current = tp.mode;
-    final c       = tp.colors;
-
+    final tp = context.watch<ThemeProvider>(); final c = tp.colors;
     return Container(
       decoration: BoxDecoration(color: c.bgCard, borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
       padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.of(context).padding.bottom + 36),
       child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Center(child: Container(width: 36, height: 4,
-            margin: const EdgeInsets.symmetric(vertical: 14),
+          Center(child: Container(width: 36, height: 4, margin: const EdgeInsets.symmetric(vertical: 14),
             decoration: BoxDecoration(color: c.border, borderRadius: BorderRadius.circular(2)))),
           Row(children: [
             Icon(Icons.palette_outlined, color: c.primary, size: 20),
@@ -1214,8 +1489,8 @@ class _ThemePickerSheet extends StatelessWidget {
           ]),
           const SizedBox(height: 16),
           ...AppThemeMode.values.map((mode) {
-            final isSelected = mode == current;
-            final mc         = ThemePalette.of(mode);
+            final isSelected = mode == tp.mode;
+            final mc = ThemePalette.of(mode);
             return _ThemeOption(mode: mode, colors: mc, isSelected: isSelected,
               onTap: () { tp.setTheme(mode); Navigator.pop(context); });
           }),
@@ -1227,13 +1502,8 @@ class _ThemePickerSheet extends StatelessWidget {
 }
 
 class _ThemeOption extends StatelessWidget {
-  final AppThemeMode mode;
-  final ThemeColors  colors;
-  final bool         isSelected;
-  final VoidCallback onTap;
-
+  final AppThemeMode mode; final ThemeColors colors; final bool isSelected; final VoidCallback onTap;
   const _ThemeOption({required this.mode, required this.colors, required this.isSelected, required this.onTap});
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -1245,10 +1515,8 @@ class _ThemeOption extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected ? mode.accentColor.withOpacity(0.1) : colors.bgCard,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected ? mode.accentColor.withOpacity(0.6) : colors.border.withOpacity(0.3),
-            width: isSelected ? 1.5 : 1),
-        ),
+          border: Border.all(color: isSelected ? mode.accentColor.withOpacity(0.6) : colors.border.withOpacity(0.3),
+            width: isSelected ? 1.5 : 1)),
         child: Row(children: [
           Container(width: 36, height: 36,
             decoration: BoxDecoration(shape: BoxShape.circle, gradient: colors.accentGradient,
@@ -1270,17 +1538,30 @@ class _ThemeOption extends StatelessWidget {
   }
 }
 
+
 // ─────────────────────────────────────────────────────────────
 // GREETING HEADER
 // ─────────────────────────────────────────────────────────────
 class _GreetingHeader extends StatelessWidget {
-  final String      name;
-  final String?     avatarUrl;
+  final String name;
+  final String? avatarUrl;
   final ThemeColors c;
   final AuthProvider auth;
   final List<Map<String, dynamic>> notifications;
+  const _GreetingHeader({required this.name, required this.avatarUrl,
+    required this.c, required this.auth, required this.notifications});
 
-  const _GreetingHeader({required this.name, required this.avatarUrl, required this.c, required this.auth, required this.notifications});
+  void _openChatTab(BuildContext context) {
+    Navigator.of(context).push(ChatTabRoute());
+  }
+
+  void _showNotifications(BuildContext context) {
+    final tp = context.read<ThemeProvider>();
+    showModalBottomSheet(
+      context: context, isScrollControlled: true, useSafeArea: true, backgroundColor: Colors.transparent,
+      builder: (_) => ChangeNotifierProvider.value(value: tp,
+        child: _NotificationSheet(notifications: notifications)));
+  }
 
   String _greeting() {
     final h = DateTime.now().hour;
@@ -1290,36 +1571,37 @@ class _GreetingHeader extends StatelessWidget {
     return 'Шөнийн мэнд,';
   }
 
-  void _showNotifications(BuildContext context) {
-    final tp = context.read<ThemeProvider>();
-    showModalBottomSheet(
-      context: context, isScrollControlled: true, useSafeArea: true, backgroundColor: Colors.transparent,
-      builder: (_) => ChangeNotifierProvider.value(value: tp, child: _NotificationSheet(notifications: notifications)),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final firstName = name.split(' ').first;
     final initial   = name.isNotEmpty ? name[0] : '?';
     final hasNotif  = notifications.isNotEmpty;
 
+    final isDark = c.bgDark.computeLuminance() < 0.3;
+    final glassTint = isDark ? Colors.white : Colors.black;
+
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(bottom: Radius.circular(40)),
-      child: Container(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+        child: Container(
         width: double.infinity,
-        decoration: BoxDecoration(gradient: c.headerGradient),
+        decoration: BoxDecoration(
+          color: glassTint.withOpacity(isDark ? 0.10 : 0.06),
+          border: Border(
+            bottom: BorderSide(color: glassTint.withOpacity(isDark ? 0.18 : 0.12), width: 1)),
+        ),
         child: Stack(clipBehavior: Clip.hardEdge, children: [
           Positioned(top: -50, right: -40, child: Container(width: 200, height: 200,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: c.primary.withOpacity(0.25)))),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: c.primary.withOpacity(0.18)))),
           Positioned(top: 20, right: 80, child: Container(width: 90, height: 90,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: c.accent.withOpacity(0.15)))),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: c.accent.withOpacity(0.12)))),
           Positioned(top: 60, right: 20, child: Container(width: 50, height: 50,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: c.primary.withOpacity(0.12)))),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: c.primary.withOpacity(0.10)))),
           Positioned(bottom: -30, left: -20, child: Container(width: 130, height: 130,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: c.primary.withOpacity(0.1)))),
-          SafeArea(
-            bottom: false,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: c.primary.withOpacity(0.08)))),
+
+          SafeArea(bottom: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1328,21 +1610,33 @@ class _GreetingHeader extends StatelessWidget {
                     style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 16, fontWeight: FontWeight.w700)),
                   Row(children: [
                     if (auth.isClubAdmin)
-                      GestureDetector(onTap: () => Navigator.pushNamed(context, '/admin'), child: _iconBtn(Icons.admin_panel_settings_outlined)),
+                      GestureDetector(onTap: () => Navigator.pushNamed(context, '/admin'),
+                        child: _iconBtn(Icons.admin_panel_settings_outlined)),
                     if (auth.isSuperAdmin)
-                      GestureDetector(onTap: () => Navigator.pushNamed(context, '/super-admin'), child: _iconBtn(Icons.shield_outlined)),
+                      GestureDetector(onTap: () => Navigator.pushNamed(context, '/super-admin'),
+                        child: _iconBtn(Icons.shield_outlined)),
+                    GestureDetector(
+                      onTap: () => _openChatTab(context),
+                      child: Container(
+                        width: 36, height: 36, margin: const EdgeInsets.only(left: 8),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: c.accentGradient,
+                          border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                          boxShadow: [BoxShadow(color: c.primary.withOpacity(0.4), blurRadius: 12)]),
+                        child: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 18)),
+                    ),
                     GestureDetector(
                       onTap: () => _showNotifications(context),
                       child: Stack(clipBehavior: Clip.none, children: [
                         _iconBtn(Icons.notifications_outlined),
                         if (hasNotif)
-                          Positioned(top: -2, right: -2,
-                            child: Container(width: 16, height: 16,
-                              decoration: BoxDecoration(color: c.coral, shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 1.5)),
-                              child: Center(child: Text(
-                                notifications.length > 9 ? '9+' : '${notifications.length}',
-                                style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700))))),
+                          Positioned(top: -2, right: -2, child: Container(width: 16, height: 16,
+                            decoration: BoxDecoration(color: c.coral, shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 1.5)),
+                            child: Center(child: Text(
+                              notifications.length > 9 ? '9+' : '${notifications.length}',
+                              style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700))))),
                       ]),
                     ),
                   ]),
@@ -1352,14 +1646,14 @@ class _GreetingHeader extends StatelessWidget {
                   Container(
                     decoration: BoxDecoration(shape: BoxShape.circle,
                       border: Border.all(color: Colors.white.withOpacity(0.35), width: 3)),
-                    child: ClipOval(child: _buildAvatar(initial, 64)),
-                  ),
+                    child: ClipOval(child: _buildAvatar(initial, 64))),
                   const SizedBox(width: 16),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(_greeting(), style: TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 14)),
                     const SizedBox(height: 2),
                     Text('$firstName,',
-                      style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800, height: 1.1, letterSpacing: -0.5),
+                      style: const TextStyle(color: Colors.white, fontSize: 30,
+                        fontWeight: FontWeight.w800, height: 1.1, letterSpacing: -0.5),
                       overflow: TextOverflow.ellipsis),
                   ])),
                 ]),
@@ -1368,6 +1662,7 @@ class _GreetingHeader extends StatelessWidget {
           ),
         ]),
       ),
+      ),
     );
   }
 
@@ -1375,13 +1670,13 @@ class _GreetingHeader extends StatelessWidget {
     width: 36, height: 36, margin: const EdgeInsets.only(left: 8),
     decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(0.12),
       border: Border.all(color: Colors.white.withOpacity(0.2))),
-    child: Icon(icon, color: Colors.white.withOpacity(0.9), size: 18),
-  );
+    child: Icon(icon, color: Colors.white.withOpacity(0.9), size: 18));
 
   Widget _buildAvatar(String initial, double size) {
-    if (avatarUrl != null && avatarUrl!.startsWith('icon:')) return _iconAvatar(avatarUrl!, size);
-    if (avatarUrl != null && avatarUrl!.isNotEmpty)
-      return Image.network(avatarUrl!, width: size, height: size, fit: BoxFit.cover,
+    final url = avatarUrl;
+    if (url != null && url.startsWith('icon:')) return _iconAvatar(url, size);
+    if (url != null && url.isNotEmpty)
+      return Image.network(url, width: size, height: size, fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _defaultAvatar(initial, size));
     return _defaultAvatar(initial, size);
   }
@@ -1389,19 +1684,17 @@ class _GreetingHeader extends StatelessWidget {
   Widget _defaultAvatar(String initial, double size) => Container(
     width: size, height: size,
     decoration: BoxDecoration(shape: BoxShape.circle, gradient: c.accentGradient),
-    child: Center(child: Text(initial, style: TextStyle(fontSize: size * 0.38, color: Colors.white, fontWeight: FontWeight.w700))),
-  );
+    child: Center(child: Text(initial,
+      style: TextStyle(fontSize: size * 0.38, color: Colors.white, fontWeight: FontWeight.w700))));
 
   Widget _iconAvatar(String url, double size) {
-    const icons = [
-      Icons.person_rounded, Icons.face_rounded, Icons.sentiment_very_satisfied_rounded, Icons.school_rounded,
+    const icons = [Icons.person_rounded, Icons.face_rounded, Icons.sentiment_very_satisfied_rounded, Icons.school_rounded,
       Icons.star_rounded, Icons.rocket_launch_rounded, Icons.auto_awesome_rounded, Icons.psychology_rounded,
       Icons.eco_rounded, Icons.local_fire_department_rounded, Icons.diamond_rounded, Icons.bolt_rounded,
-      Icons.palette_rounded, Icons.sports_esports_rounded, Icons.music_note_rounded, Icons.sports_basketball_rounded,
-    ];
-    final idx       = int.tryParse(url.replaceFirst('icon:', '')) ?? 0;
-    final safeIdx   = idx.clamp(0, icons.length - 1);
-    final colors    = [c.primary, c.teal, c.accent, c.coral];
+      Icons.palette_rounded, Icons.sports_esports_rounded, Icons.music_note_rounded, Icons.sports_basketball_rounded];
+    final idx     = int.tryParse(url.replaceFirst('icon:', '')) ?? 0;
+    final safeIdx = idx.clamp(0, icons.length - 1);
+    final colors  = [c.primary, c.teal, c.accent, c.coral];
     final iconColor = colors[safeIdx % colors.length];
     return Container(width: size, height: size, color: iconColor.withOpacity(0.2),
       child: Icon(icons[safeIdx], color: iconColor, size: size * 0.5));
@@ -1409,318 +1702,12 @@ class _GreetingHeader extends StatelessWidget {
 }
 
 
-
-// ─────────────────────────────────────────────────────────────
-// COLLAPSIBLE CALENDAR WRAPPER
-// ─────────────────────────────────────────────────────────────
-class _CollapsibleCalendar extends StatefulWidget {
-  final List<Map<String, dynamic>> events;
-  final DateTime month;
-  final DateTime? selectedDay;
-  final void Function(DateTime) onMonthChanged;
-  final void Function(DateTime, Map<String, dynamic>?) onDaySelected;
-  final ThemeColors c;
-
-  const _CollapsibleCalendar({
-    required this.events,
-    required this.month,
-    required this.selectedDay,
-    required this.onMonthChanged,
-    required this.onDaySelected,
-    required this.c,
-  });
-
-  @override
-  State<_CollapsibleCalendar> createState() => _CollapsibleCalendarState();
-}
-
-class _CollapsibleCalendarState extends State<_CollapsibleCalendar>
-    with SingleTickerProviderStateMixin {
-  bool _expanded = false;
-  late AnimationController _ctrl;
-  late Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 250));
-    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
-  }
-
-  @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
-
-  void _toggle() {
-    setState(() => _expanded = !_expanded);
-    _expanded ? _ctrl.forward() : _ctrl.reverse();
-  }
-
-  // Count events this month
-  int get _eventCount => widget.events.where((e) {
-    final d = DateTime.tryParse(e['event_date'] ?? '')?.toLocal();
-    return d != null && d.year == widget.month.year && d.month == widget.month.month;
-  }).length;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = widget.c;
-    return Container(
-      decoration: BoxDecoration(
-        color: c.bgCard,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: c.border.withOpacity(0.3)),
-      ),
-      child: Column(children: [
-        // ── Header (always visible) ──────────────────────────
-        GestureDetector(
-          onTap: _toggle,
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(children: [
-              Container(
-                width: 36, height: 36,
-                decoration: BoxDecoration(
-                  color: c.primary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(Icons.calendar_month_rounded, color: c.primary, size: 18),
-              ),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Арга хэмжээний хуанли',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.textPrimary)),
-                Text('${widget.month.year} оны ${_monthName(widget.month.month)} • $_eventCount арга хэмжээ',
-                  style: TextStyle(fontSize: 11, color: c.textMuted)),
-              ])),
-              AnimatedRotation(
-                turns: _expanded ? 0.5 : 0,
-                duration: const Duration(milliseconds: 250),
-                child: Icon(Icons.keyboard_arrow_down_rounded, color: c.textMuted, size: 22),
-              ),
-            ]),
-          ),
-        ),
-
-        // ── Expandable content ───────────────────────────────
-        SizeTransition(
-          sizeFactor: _anim,
-          child: Column(children: [
-            Divider(height: 1, color: c.border.withOpacity(0.3)),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              child: _EventCalendar(
-                events: widget.events,
-                month: widget.month,
-                selectedDay: widget.selectedDay,
-                onMonthChanged: widget.onMonthChanged,
-                onDaySelected: widget.onDaySelected,
-                c: c,
-              ),
-            ),
-          ]),
-        ),
-      ]),
-    );
-  }
-
-  String _monthName(int m) {
-    const names = ['1-р', '2-р', '3-р', '4-р', '5-р', '6-р',
-                   '7-р', '8-р', '9-р', '10-р', '11-р', '12-р'];
-    return '${names[m - 1]} сар';
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// EVENT CALENDAR — grid style
-// ─────────────────────────────────────────────────────────────
-class _EventCalendar extends StatelessWidget {
-  final List<Map<String, dynamic>> events;
-  final DateTime month;
-  final DateTime? selectedDay;
-  final void Function(DateTime) onMonthChanged;
-  final void Function(DateTime, Map<String, dynamic>?) onDaySelected;
-  final ThemeColors c;
-
-  const _EventCalendar({
-    required this.events,
-    required this.month,
-    required this.selectedDay,
-    required this.onMonthChanged,
-    required this.onDaySelected,
-    required this.c,
-  });
-
-  Map<int, List<Map<String, dynamic>>> _groupByDay() {
-    final map = <int, List<Map<String, dynamic>>>{};
-    for (final e in events) {
-      final d = DateTime.tryParse(e['event_date'] ?? '')?.toLocal();
-      if (d != null && d.year == month.year && d.month == month.month) {
-        map.putIfAbsent(d.day, () => []).add(e);
-      }
-    }
-    return map;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final grouped      = _groupByDay();
-    final firstWeekday = DateTime(month.year, month.month, 1).weekday; // 1=Mon
-    final daysInMonth  = DateTime(month.year, month.month + 1, 0).day;
-    final today        = DateTime.now();
-    const weekdays     = ['Да', 'Мя', 'Лх', 'Пү', 'Ба', 'Бя', 'Ня'];
-
-    return Column(children: [
-      // Month header
-      Row(children: [
-        GestureDetector(
-          onTap: () => onMonthChanged(DateTime(month.year, month.month - 1)),
-          child: Container(width: 32, height: 32,
-            decoration: BoxDecoration(color: c.primary.withOpacity(0.1), shape: BoxShape.circle),
-            child: Icon(Icons.chevron_left, size: 20, color: c.primary))),
-        Expanded(child: Center(child: Text(
-          '${month.year} оны ${_mn(month.month)}',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: c.textPrimary)))),
-        GestureDetector(
-          onTap: () => onMonthChanged(DateTime(month.year, month.month + 1)),
-          child: Container(width: 32, height: 32,
-            decoration: BoxDecoration(color: c.primary.withOpacity(0.1), shape: BoxShape.circle),
-            child: Icon(Icons.chevron_right, size: 20, color: c.primary))),
-      ]),
-      const SizedBox(height: 14),
-
-      // Weekday row
-      Row(children: weekdays.map((d) => Expanded(child: Center(child:
-        Text(d, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c.textMuted))))).toList()),
-      const SizedBox(height: 8),
-
-      // Days grid
-      GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 7, childAspectRatio: 1.0,
-          mainAxisSpacing: 2, crossAxisSpacing: 0),
-        itemCount: firstWeekday - 1 + daysInMonth,
-        itemBuilder: (_, i) {
-          if (i < firstWeekday - 1) return const SizedBox.shrink();
-          final day       = i - (firstWeekday - 1) + 1;
-          final date      = DateTime(month.year, month.month, day);
-          final dayEvents = grouped[day] ?? [];
-          final isToday   = date.year == today.year && date.month == today.month && date.day == today.day;
-          final isSel     = selectedDay != null &&
-              date.year == selectedDay!.year &&
-              date.month == selectedDay!.month &&
-              date.day == selectedDay!.day;
-
-          return GestureDetector(
-            onTap: () => onDaySelected(date, dayEvents.isNotEmpty ? dayEvents.first : null),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              margin: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                color: isSel ? c.primary : isToday ? c.primary.withOpacity(0.15) : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
-              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text('$day', style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isSel || isToday ? FontWeight.w700 : FontWeight.w400,
-                  color: isSel ? Colors.white : isToday ? c.primary : c.textPrimary)),
-                if (dayEvents.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Container(width: 5, height: 5,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isSel ? Colors.white : c.teal)),
-                ],
-              ]),
-            ),
-          );
-        },
-      ),
-
-      // Selected day event tile
-      if (selectedDay != null && (grouped[selectedDay!.day] ?? []).isNotEmpty) ...[
-        const SizedBox(height: 12),
-        Divider(color: c.border.withOpacity(0.3), height: 1),
-        const SizedBox(height: 10),
-        ...(grouped[selectedDay!.day] ?? []).map((e) => _SelectedEventTile(event: e, c: c)),
-      ],
-    ]);
-  }
-
-  String _mn(int m) {
-    const n = ['1-р','2-р','3-р','4-р','5-р','6-р','7-р','8-р','9-р','10-р','11-р','12-р'];
-    return '${n[m-1]} сар';
-  }
-}
-
-class _SelectedEventTile extends StatelessWidget {
-  final Map<String, dynamic> event;
-  final ThemeColors c;
-  const _SelectedEventTile({required this.event, required this.c});
-
-  @override
-  Widget build(BuildContext context) {
-    final title    = event['title'] ?? '';
-    final clubName = event['clubs']?['name'] ?? '';
-    final location = event['location'] ?? '';
-    final hours    = event['hours'];
-
-    return GestureDetector(
-      onTap: () {
-        final tp = context.read<ThemeProvider>();
-        showModalBottomSheet(
-          context: context, isScrollControlled: true,
-          useSafeArea: true, backgroundColor: Colors.transparent,
-          builder: (_) => ChangeNotifierProvider.value(
-            value: tp, child: _EventDetailSheet(event: event)),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: c.primary.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: c.primary.withOpacity(0.2)),
-        ),
-        child: Row(children: [
-          Container(width: 4, height: 40, decoration: BoxDecoration(
-            color: c.primary, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.textPrimary)),
-            if (clubName.isNotEmpty)
-              Text(clubName, style: TextStyle(fontSize: 11, color: c.textMuted)),
-            if (location.isNotEmpty)
-              Row(children: [
-                Icon(Icons.location_on_outlined, size: 11, color: c.textMuted),
-                const SizedBox(width: 2),
-                Text(location, style: TextStyle(fontSize: 11, color: c.textMuted)),
-              ]),
-          ])),
-          if (hours != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: c.teal.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
-              child: Text('${hours}ц', style: TextStyle(fontSize: 11, color: c.teal, fontWeight: FontWeight.w700))),
-          const SizedBox(width: 6),
-          Icon(Icons.arrow_forward_ios_rounded, size: 11, color: c.textMuted),
-        ]),
-      ),
-    );
-  }
-}
-
 // ─────────────────────────────────────────────────────────────
 // NOTIFICATION SHEET
 // ─────────────────────────────────────────────────────────────
 class _NotificationSheet extends StatelessWidget {
   final List<Map<String, dynamic>> notifications;
   const _NotificationSheet({required this.notifications});
-
   @override
   Widget build(BuildContext context) {
     final c = context.watch<ThemeProvider>().colors;
@@ -1728,8 +1715,7 @@ class _NotificationSheet extends StatelessWidget {
       decoration: BoxDecoration(color: c.bgCard, borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
       padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.of(context).padding.bottom + 24),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Center(child: Container(width: 36, height: 4,
-          margin: const EdgeInsets.symmetric(vertical: 14),
+        Center(child: Container(width: 36, height: 4, margin: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(color: c.border, borderRadius: BorderRadius.circular(2)))),
         Row(children: [
           Icon(Icons.notifications_outlined, color: c.primary, size: 20),
@@ -1752,29 +1738,22 @@ class _NotificationSheet extends StatelessWidget {
         else
           ConstrainedBox(
             constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: notifications.length,
-              itemBuilder: (_, i) => _NotifItem(notif: notifications[i], c: c),
-            ),
-          ),
+            child: ListView.builder(shrinkWrap: true, itemCount: notifications.length,
+              itemBuilder: (_, i) => _NotifItem(notif: notifications[i], c: c))),
       ]),
     );
   }
 }
 
 class _NotifItem extends StatelessWidget {
-  final Map<String, dynamic> notif;
-  final ThemeColors c;
+  final Map<String, dynamic> notif; final ThemeColors c;
   const _NotifItem({required this.notif, required this.c});
-
   @override
   Widget build(BuildContext context) {
     final isEvent = notif['type'] == 'event';
     final color   = isEvent ? c.teal : c.primary;
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withOpacity(0.2))),
       child: Row(children: [
@@ -1785,8 +1764,7 @@ class _NotifItem extends StatelessWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(notif['title'] ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.textPrimary)),
           const SizedBox(height: 2),
-          Text(notif['body'] ?? '', style: TextStyle(fontSize: 12, color: c.textSecondary),
-            maxLines: 2, overflow: TextOverflow.ellipsis),
+          Text(notif['body'] ?? '', style: TextStyle(fontSize: 12, color: c.textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis),
           if ((notif['date'] ?? '').isNotEmpty) ...[
             const SizedBox(height: 4),
             Row(children: [
@@ -1801,6 +1779,7 @@ class _NotifItem extends StatelessWidget {
   }
 }
 
+
 // ═══════════════════════════════════════════════════════════
 // TAB 3: Хуанли
 // ═══════════════════════════════════════════════════════════
@@ -1810,57 +1789,342 @@ class _CalendarTab extends StatefulWidget {
   State<_CalendarTab> createState() => _CalendarTabState();
 }
 
-class _CalendarTabState extends State<_CalendarTab> {
-  List<Map<String, dynamic>> _events = [];
+class _CalendarTabState extends State<_CalendarTab> with SingleTickerProviderStateMixin {
+  List<Map<String, dynamic>> _events = [], _announcements = [];
   bool _loading = true;
   DateTime _month = DateTime.now();
   DateTime? _selectedDay;
+  List<Map<String, dynamic>> _dayItems = [];
+  late AnimationController _transCtrl;
+  late Animation<double> _calFade, _circleScale;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+    _transCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 420));
+    _calFade     = Tween<double>(begin: 1.0, end: 0.0).animate(CurvedAnimation(parent: _transCtrl, curve: const Interval(0.0, 0.45, curve: Curves.easeIn)));
+    _circleScale = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _transCtrl, curve: const Interval(0.35, 1.0, curve: Curves.easeOutExpo)));
+  }
+
+  @override
+  void dispose() { _transCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
-    final res = await supabase
-        .from('events')
-        .select('*, clubs(name)')
-        .order('event_date', ascending: true);
-    if (mounted) setState(() { _events = List<Map<String, dynamic>>.from(res); _loading = false; });
+    final evRes = await supabase.from('events').select('*, clubs(name)').order('event_date', ascending: true);
+    final anRes = await supabase.from('announcements').select('*, clubs(name)').eq('status', 'published').order('created_at', ascending: true);
+    if (mounted) setState(() {
+      _events        = List<Map<String, dynamic>>.from(evRes).map((e) => {...e, '_type': 'event'}).toList();
+      _announcements = List<Map<String, dynamic>>.from(anRes).map((a) => {...a, '_type': 'announcement'}).toList();
+      _loading = false;
+    });
+  }
+
+  Map<int, List<Map<String, dynamic>>> _groupEvents() {
+    final map = <int, List<Map<String, dynamic>>>{};
+    for (final e in _events) {
+      final d = DateTime.tryParse(e['event_date'] ?? '')?.toLocal();
+      if (d != null && d.year == _month.year && d.month == _month.month)
+        map.putIfAbsent(d.day, () => []).add(e);
+    }
+    return map;
+  }
+
+  Map<int, List<Map<String, dynamic>>> _groupAnnouncements() {
+    final map = <int, List<Map<String, dynamic>>>{};
+    for (final a in _announcements) {
+      final d = DateTime.tryParse(a['created_at'] ?? '')?.toLocal();
+      if (d != null && d.year == _month.year && d.month == _month.month)
+        map.putIfAbsent(d.day, () => []).add(a);
+    }
+    return map;
+  }
+
+  void _openDay(DateTime date, List<Map<String, dynamic>> items) async {
+    setState(() { _selectedDay = date; _dayItems = items; });
+    _transCtrl.forward(from: 0.0);
+  }
+
+  void _closeDay() async {
+    await _transCtrl.reverse();
+    setState(() { _selectedDay = null; _dayItems = []; });
   }
 
   @override
   Widget build(BuildContext context) {
     final c = context.watch<ThemeProvider>().colors;
-    return _loading
-        ? const LoadingView()
-        : RefreshIndicator(
-            onRefresh: _load,
-            color: c.primary,
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              child: _EventCalendar(
-                events: _events,
-                month: _month,
-                selectedDay: _selectedDay,
-                onMonthChanged: (m) => setState(() { _month = m; _selectedDay = null; }),
-                onDaySelected: (day, event) {
-                  setState(() => _selectedDay = day);
-                  if (event != null) {
-                    final tp = context.read<ThemeProvider>();
-                    showModalBottomSheet(
-                      context: context, isScrollControlled: true,
-                      useSafeArea: true, backgroundColor: Colors.transparent,
-                      builder: (_) => ChangeNotifierProvider.value(
-                        value: tp, child: _EventDetailSheet(event: event)),
-                    );
-                  }
-                },
-                c: c,
-              ),
-            ),
-          );
+    if (_loading) return const LoadingView();
+    return AnimatedBuilder(
+      animation: _transCtrl,
+      builder: (_, __) {
+        final showCircle = _selectedDay != null;
+        return Stack(children: [
+          Opacity(opacity: showCircle ? _calFade.value : 1.0,
+            child: IgnorePointer(ignoring: showCircle && _transCtrl.value > 0.3,
+              child: _buildCalendar(context, c))),
+          if (showCircle)
+            Opacity(opacity: _circleScale.value.clamp(0.0, 1.0),
+              child: Transform.scale(scale: _circleScale.value,
+                child: _EventFullScreen(date: _selectedDay!, events: _dayItems, c: c, onClose: _closeDay))),
+        ]);
+      },
+    );
+  }
+
+  Widget _buildCalendar(BuildContext context, ThemeColors c) {
+    final groupedEv    = _groupEvents();
+    final groupedAn    = _groupAnnouncements();
+    final firstWeekday = DateTime(_month.year, _month.month, 1).weekday;
+    final daysInMonth  = DateTime(_month.year, _month.month + 1, 0).day;
+    final today        = DateTime.now();
+    const weekdays     = ['Да', 'Мя', 'Лх', 'Пү', 'Ба', 'Бя', 'Ня'];
+    return RefreshIndicator(
+      onRefresh: _load, color: c.primary,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        child: Column(children: [
+          Row(children: [
+            GestureDetector(onTap: () => setState(() => _month = DateTime(_month.year, _month.month - 1)),
+              child: Container(width: 34, height: 34, decoration: BoxDecoration(color: c.primary.withOpacity(0.1), shape: BoxShape.circle),
+                child: Icon(Icons.chevron_left, size: 20, color: c.primary))),
+            Expanded(child: Center(child: Text('${_month.year} оны ${_mnName(_month.month)}',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textPrimary)))),
+            GestureDetector(onTap: () => setState(() => _month = DateTime(_month.year, _month.month + 1)),
+              child: Container(width: 34, height: 34, decoration: BoxDecoration(color: c.primary.withOpacity(0.1), shape: BoxShape.circle),
+                child: Icon(Icons.chevron_right, size: 20, color: c.primary))),
+          ]),
+          const SizedBox(height: 16),
+          Row(children: weekdays.map((d) => Expanded(child: Center(child:
+            Text(d, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c.textMuted))))).toList()),
+          const SizedBox(height: 8),
+          GridView.builder(
+            shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 7, childAspectRatio: 1.0, mainAxisSpacing: 2, crossAxisSpacing: 0),
+            itemCount: firstWeekday - 1 + daysInMonth,
+            itemBuilder: (_, i) {
+              if (i < firstWeekday - 1) return const SizedBox.shrink();
+              final day = i - (firstWeekday - 1) + 1;
+              final date = DateTime(_month.year, _month.month, day);
+              final dayEvts = groupedEv[day] ?? [];
+              final dayAnns = groupedAn[day] ?? [];
+              final hasEv = dayEvts.isNotEmpty; final hasAn = dayAnns.isNotEmpty;
+              final isToday = date.year == today.year && date.month == today.month && date.day == today.day;
+              final allItems = [...dayEvts, ...dayAnns];
+              return GestureDetector(
+                onTap: () => _openDay(date, allItems),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  margin: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(color: isToday ? c.primary : Colors.transparent, shape: BoxShape.circle),
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Text('$day', style: TextStyle(fontSize: 13,
+                      fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
+                      color: isToday ? Colors.white : c.textPrimary)),
+                    if (hasEv || hasAn) ...[
+                      const SizedBox(height: 2),
+                      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        if (hasEv) Container(width: 5, height: 5, margin: const EdgeInsets.symmetric(horizontal: 1),
+                          decoration: BoxDecoration(shape: BoxShape.circle, color: isToday ? Colors.white : c.primary)),
+                        if (hasAn) Container(width: 5, height: 5, margin: const EdgeInsets.symmetric(horizontal: 1),
+                          decoration: BoxDecoration(shape: BoxShape.circle, color: isToday ? Colors.white70 : c.teal)),
+                      ]),
+                    ],
+                  ]),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            _LegendDot(color: c.primary, label: 'Арга хэмжээ'),
+            const SizedBox(width: 20),
+            _LegendDot(color: c.teal, label: 'Үйл ажиллагаа'),
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  String _mnName(int m) {
+    const n = ['1-р','2-р','3-р','4-р','5-р','6-р','7-р','8-р','9-р','10-р','11-р','12-р'];
+    return '${n[m-1]} сар';
   }
 }
+
+class _LegendDot extends StatelessWidget {
+  final Color color; final String label;
+  const _LegendDot({required this.color, required this.label});
+  @override
+  Widget build(BuildContext context) {
+    final c = context.watch<ThemeProvider>().colors;
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: color)),
+      const SizedBox(width: 6),
+      Text(label, style: TextStyle(fontSize: 11, color: c.textMuted, fontWeight: FontWeight.w500)),
+    ]);
+  }
+}
+
+class _EventFullScreen extends StatefulWidget {
+  final DateTime date; final List<Map<String, dynamic>> events; final ThemeColors c; final VoidCallback onClose;
+  const _EventFullScreen({required this.date, required this.events, required this.c, required this.onClose});
+  @override
+  State<_EventFullScreen> createState() => _EventFullScreenState();
+}
+
+class _EventFullScreenState extends State<_EventFullScreen> {
+  int _idx = 0; late PageController _imgCtrl;
+  @override
+  void initState() { super.initState(); _imgCtrl = PageController(); }
+  @override
+  void dispose() { _imgCtrl.dispose(); super.dispose(); }
+  Map<String, dynamic>? get _cur => widget.events.isNotEmpty ? widget.events[_idx] : null;
+  bool get _isEvent { final cur = _cur; if (cur == null) return false; return (cur['_type'] as String?) == 'event'; }
+  String _dateStr() { final d = widget.date; return '${d.year}.${d.month.toString().padLeft(2,'0')}.${d.day.toString().padLeft(2,'0')}'; }
+  List<String> _images(Map<String, dynamic>? e) {
+    if (e == null) return [''];
+    final List<String> imgs = [];
+    final main = e['image_url'] as String?;
+    if (main != null && main.isNotEmpty) imgs.add(main);
+    final extra = e['extra_images'];
+    if (extra is List) { for (final img in extra) { if (img is String && img.isNotEmpty) imgs.add(img); } }
+    return imgs.isEmpty ? [''] : imgs;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.c; final e = _cur; final size = MediaQuery.of(context).size; final isEv = _isEvent;
+    final String title    = (e?['title'] ?? '') as String;
+    final String clubName = ((e?['clubs'] as Map?)?['name'] ?? '') as String;
+    final dynamic hours   = (isEv && e != null) ? e['hours'] : null;
+    final String location = (isEv && e != null) ? ((e['location'] ?? '') as String) : '';
+    final String desc     = (e == null) ? '' : isEv ? ((e['description'] ?? '') as String) : ((e['content'] ?? '') as String);
+    final bool hasMany    = widget.events.length > 1;
+    final Color typeColor = isEv ? c.primary : c.teal;
+    final IconData typeIcon  = isEv ? Icons.event_rounded : Icons.campaign_rounded;
+    final String typeLabel   = isEv ? 'Арга хэмжээ' : 'Үйл ажиллагаа';
+    final List<String> imgs  = _images(e);
+    final double circleD     = size.width * 0.82;
+
+    return Container(
+      width: size.width, height: size.height, color: c.bgDark,
+      child: Column(children: [
+        SafeArea(bottom: false,
+          child: Padding(padding: const EdgeInsets.only(top: 8),
+            child: Column(children: [
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Align(alignment: Alignment.centerLeft,
+                  child: GestureDetector(onTap: widget.onClose,
+                    child: Container(width: 38, height: 38,
+                      decoration: BoxDecoration(shape: BoxShape.circle,
+                        color: c.primary.withOpacity(0.15), border: Border.all(color: c.primary.withOpacity(0.3))),
+                      child: Icon(Icons.arrow_back_rounded, color: c.primary, size: 20))))),
+              const SizedBox(height: 16),
+              Center(child: Stack(alignment: Alignment.center, children: [
+                Container(width: circleD + 10, height: circleD + 10,
+                  decoration: BoxDecoration(shape: BoxShape.circle,
+                    boxShadow: [BoxShadow(color: typeColor.withOpacity(0.28), blurRadius: 30, spreadRadius: 4)])),
+                Container(width: circleD + 4, height: circleD + 4,
+                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: typeColor, width: 2.5))),
+                ClipOval(child: SizedBox(width: circleD, height: circleD,
+                  child: imgs.length == 1
+                      ? (imgs[0].isNotEmpty
+                          ? Image.network(imgs[0], fit: BoxFit.cover, errorBuilder: (_, __, ___) => _gradCircle(c, typeColor))
+                          : _gradCircle(c, typeColor))
+                      : PageView.builder(controller: _imgCtrl, itemCount: imgs.length,
+                          itemBuilder: (_, pi) {
+                            final url = imgs[pi];
+                            return url.isNotEmpty
+                                ? Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _gradCircle(c, typeColor))
+                                : _gradCircle(c, typeColor);
+                          }))),
+                if (imgs.length > 1)
+                  Positioned(bottom: 18, left: 0, right: 0,
+                    child: AnimatedBuilder(animation: _imgCtrl, builder: (_, __) {
+                      final cur = _imgCtrl.hasClients && _imgCtrl.page != null ? _imgCtrl.page!.round() : 0;
+                      return Row(mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(imgs.length, (pi) => AnimatedContainer(
+                          duration: const Duration(milliseconds: 200), margin: const EdgeInsets.symmetric(horizontal: 3),
+                          width: cur == pi ? 18 : 6, height: 6,
+                          decoration: BoxDecoration(color: cur == pi ? Colors.white : Colors.white.withOpacity(0.5), borderRadius: BorderRadius.circular(3)))));
+                    })),
+              ])),
+              const SizedBox(height: 8),
+            ]))),
+        Expanded(child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Text(_dateStr(), style: TextStyle(fontSize: 14, color: c.textMuted, fontWeight: FontWeight.w500)),
+              const Spacer(),
+              if (clubName.isNotEmpty)
+                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: typeColor.withOpacity(0.12), borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: typeColor.withOpacity(0.3))),
+                  child: Text(clubName, style: TextStyle(fontSize: 11, color: typeColor, fontWeight: FontWeight.w600))),
+            ]),
+            const SizedBox(height: 8),
+            Text(title.isNotEmpty ? title : typeLabel,
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: c.textPrimary, height: 1.3)),
+            const SizedBox(height: 12),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: typeColor.withOpacity(0.1), borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: typeColor.withOpacity(0.3))),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(typeIcon, size: 12, color: typeColor), const SizedBox(width: 4),
+                  Text(typeLabel, style: TextStyle(fontSize: 11, color: typeColor, fontWeight: FontWeight.w600)),
+                ])),
+              if (hours != null) _InfoChipSmall(icon: Icons.access_time_rounded, label: '$hours цаг', color: c.teal),
+              if (location.isNotEmpty) _InfoChipSmall(icon: Icons.location_on_outlined, label: location, color: c.coral),
+            ]),
+            if (desc.isNotEmpty) ...[
+              const SizedBox(height: 18),
+              Text('Тайлбар', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.textPrimary)),
+              const SizedBox(height: 8),
+              Text(desc, style: TextStyle(fontSize: 14, color: c.textSecondary, height: 1.7)),
+            ],
+            if (hasMany) ...[
+              const SizedBox(height: 20),
+              Divider(color: c.border.withOpacity(0.3)),
+              const SizedBox(height: 12),
+              Row(mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(widget.events.length, (i) {
+                  final isEv_i = widget.events[i]['_type'] == 'event';
+                  final dc = isEv_i ? c.primary : c.teal;
+                  return GestureDetector(
+                    onTap: () { setState(() => _idx = i); _imgCtrl.jumpToPage(0); },
+                    child: AnimatedContainer(duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: _idx == i ? 22 : 7, height: 7,
+                      decoration: BoxDecoration(color: _idx == i ? dc : dc.withOpacity(0.3), borderRadius: BorderRadius.circular(4))));
+                })),
+            ],
+          ]),
+        )),
+      ]),
+    );
+  }
+  Widget _gradCircle(ThemeColors c, Color accent) => Container(
+    decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+      colors: [accent.withOpacity(0.55), c.accent.withOpacity(0.38)])));
+}
+
+class _InfoChip extends StatelessWidget {
+  final IconData icon; final String label; final Color color;
+  const _InfoChip({required this.icon, required this.label, required this.color});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: color.withOpacity(0.25))),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 13, color: color), const SizedBox(width: 5),
+      Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+    ]));
+}
+
 
 // ═══════════════════════════════════════════════════════════
 // TAB 4: Бүх клубүүд
@@ -1872,26 +2136,17 @@ class _AllClubsTab extends StatefulWidget {
 }
 
 class _AllClubsTabState extends State<_AllClubsTab> {
-  final _clubService  = ClubService();
-  final _searchCtrl   = TextEditingController();
-  String _selectedCat = 'all';
-  String _searchQuery = '';
-  List<Map<String, dynamic>> _clubs = [];
-  bool _loading = true;
-
+  final _clubService = ClubService(); final _searchCtrl = TextEditingController();
+  String _selectedCat = 'all'; String _searchQuery = '';
+  List<Map<String, dynamic>> _clubs = []; bool _loading = true;
   static const _cats = [
-    {'key': 'all',          'label': 'Бүгд'},
-    {'key': 'professional', 'label': 'Мэргэжлийн'},
-    {'key': 'hobby',        'label': 'Сонирхлын'},
-    {'key': 'art',          'label': 'Урлагийн'},
+    {'key': 'all', 'label': 'Бүгд'}, {'key': 'professional', 'label': 'Мэргэжлийн'},
+    {'key': 'hobby', 'label': 'Сонирхлын'}, {'key': 'art', 'label': 'Урлагийн'},
   ];
-
   @override
   void initState() { super.initState(); _load(); }
-
   @override
   void dispose() { _searchCtrl.dispose(); super.dispose(); }
-
   Future<void> _load() async {
     setState(() => _loading = true);
     final clubs = _searchQuery.isNotEmpty
@@ -1899,126 +2154,98 @@ class _AllClubsTabState extends State<_AllClubsTab> {
         : await _clubService.getClubs(category: _selectedCat == 'all' ? null : _selectedCat);
     if (mounted) setState(() { _clubs = clubs; _loading = false; });
   }
-
   @override
   Widget build(BuildContext context) {
     final c = context.watch<ThemeProvider>().colors;
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: TextField(
-            controller: _searchCtrl,
-            style: TextStyle(color: c.textPrimary),
-            decoration: InputDecoration(
-              hintText: 'Клуб хайх...',
-              prefixIcon: Icon(Icons.search, size: 20, color: c.textMuted),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(icon: Icon(Icons.clear, size: 18, color: c.textMuted),
-                      onPressed: () { _searchCtrl.clear(); setState(() => _searchQuery = ''); _load(); })
-                  : null,
-            ),
-            onChanged: (v) { setState(() => _searchQuery = v); _load(); },
-          ),
-        ),
-        SizedBox(
-          height: 44,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            children: _cats.map((cat) => Padding(
-              padding: const EdgeInsets.only(right: 6, top: 6, bottom: 6),
-              child: ChoiceChip(
-                label: Text(cat['label']!),
-                selected: _selectedCat == cat['key'],
-                onSelected: (_) { setState(() => _selectedCat = cat['key']!); _load(); },
-              ),
-            )).toList(),
-          ),
-        ),
-        Expanded(
-          child: _loading
-              ? const LoadingView()
-              : _clubs.isEmpty
-                  ? const EmptyState(message: 'Клуб олдсонгүй', icon: Icons.search_off_rounded)
-                  : GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
-                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 320, childAspectRatio: 1.05,
-                        crossAxisSpacing: 10, mainAxisSpacing: 10,
-                      ),
-                      itemCount: _clubs.length,
-                      itemBuilder: (_, i) => ClubCard(
-                        club: _clubs[i],
-                        onTap: () => Navigator.pushNamed(context, '/club-detail', arguments: _clubs[i]['id']),
-                      ),
-                    ),
-        ),
-      ],
-    );
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: TextField(
+          controller: _searchCtrl, style: TextStyle(color: c.textPrimary),
+          decoration: InputDecoration(
+            hintText: 'Клуб хайх...',
+            prefixIcon: Icon(Icons.search, size: 20, color: c.textMuted),
+            suffixIcon: _searchQuery.isNotEmpty
+                ? IconButton(icon: Icon(Icons.clear, size: 18, color: c.textMuted),
+                    onPressed: () { _searchCtrl.clear(); setState(() => _searchQuery = ''); _load(); })
+                : null),
+          onChanged: (v) { setState(() => _searchQuery = v); _load(); })),
+      SizedBox(height: 44, child: ListView(
+        scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: _cats.map((cat) => Padding(
+          padding: const EdgeInsets.only(right: 6, top: 6, bottom: 6),
+          child: ChoiceChip(label: Text(cat['label']!), selected: _selectedCat == cat['key'],
+            onSelected: (_) { setState(() => _selectedCat = cat['key']!); _load(); }))).toList())),
+      Expanded(child: _loading ? const LoadingView()
+          : _clubs.isEmpty
+              ? const EmptyState(message: 'Клуб олдсонгүй', icon: Icons.search_off_rounded)
+              : GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 320, childAspectRatio: 1.05, crossAxisSpacing: 10, mainAxisSpacing: 10),
+                  itemCount: _clubs.length,
+                  itemBuilder: (_, i) => ClubCard(club: _clubs[i],
+                    onTap: () => Navigator.pushNamed(context, '/club-detail', arguments: _clubs[i]['id'])))),
+    ]);
   }
 }
+
 
 // ═══════════════════════════════════════════════════════════
 // TAB 5: Профайл
 // ═══════════════════════════════════════════════════════════
 class _ProfileTab extends StatelessWidget {
   const _ProfileTab();
-
   @override
   Widget build(BuildContext context) {
-    final auth      = context.watch<AuthProvider>();
-    final tp        = context.watch<ThemeProvider>();
-    final c         = tp.colors;
-    final profile   = auth.profile;
-    final name      = profile?['full_name'] ?? '';
-    final initial   = name.isNotEmpty ? name[0] : '?';
+    final auth = context.watch<AuthProvider>(); final tp = context.watch<ThemeProvider>();
+    final c = tp.colors; final profile = auth.profile;
+    final name = profile?['full_name'] ?? ''; final initial = name.isNotEmpty ? name[0] : '?';
     final avatarUrl = profile?['avatar_url'] as String?;
-
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-      child: Column(
-        children: [
-          const SizedBox(height: 12),
-          GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/profile'),
-            child: Stack(
-              children: [
-                AvatarWidget(avatarUrl: avatarUrl, initial: initial, c: c, size: 88),
-                Positioned(bottom: 0, right: 0,
-                  child: Container(width: 26, height: 26,
-                    decoration: BoxDecoration(color: c.primary, shape: BoxShape.circle,
-                      border: Border.all(color: c.bgDark, width: 2)),
-                    child: const Icon(Icons.edit_rounded, size: 13, color: Colors.white))),
-              ],
-            ),
+      child: Column(children: [
+        const SizedBox(height: 12),
+        GestureDetector(
+          onTap: () => Navigator.pushNamed(context, '/profile'),
+          child: Stack(children: [
+            AvatarWidget(avatarUrl: avatarUrl, initial: initial, c: c, size: 88),
+            Positioned(bottom: 0, right: 0, child: Container(width: 26, height: 26,
+              decoration: BoxDecoration(color: c.primary, shape: BoxShape.circle, border: Border.all(color: c.bgDark, width: 2)),
+              child: const Icon(Icons.edit_rounded, size: 13, color: Colors.white))),
+          ])),
+        const SizedBox(height: 14),
+        Text(name, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: c.textPrimary)),
+        const SizedBox(height: 4),
+        Text(profile?['email'] ?? auth.user?.email ?? '', style: TextStyle(color: c.textSecondary, fontSize: 13)),
+        const SizedBox(height: 24),
+        _menuItem(c, context, Icons.person_outline,              'Профайл засах',   () => Navigator.pushNamed(context, '/profile')),
+        _menuItem(c, context, Icons.volunteer_activism_outlined, 'Сайн дурын цаг',  () => Navigator.pushNamed(context, '/my-hours')),
+        _menuItem(c, context, Icons.send_outlined,               'Элсэх хүсэлтүүд', () => Navigator.pushNamed(context, '/my-requests')),
+        _menuItem(c, context, Icons.star_outline_rounded,        'Миний үнэлгээ',   () => Navigator.pushNamed(context, '/my-reviews')),
+        _menuItem(c, context, Icons.feedback_outlined,           'Санал хүсэлт',    () => Navigator.push(context, MaterialPageRoute(
+          builder: (_) => ChangeNotifierProvider.value(
+            value: context.read<ThemeProvider>(),
+            child: const RequestListScreen(),
           ),
-          const SizedBox(height: 14),
-          Text(name, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: c.textPrimary)),
-          const SizedBox(height: 4),
-          Text(profile?['email'] ?? auth.user?.email ?? '', style: TextStyle(color: c.textSecondary, fontSize: 13)),
-          const SizedBox(height: 24),
-          _menuItem(c, context, Icons.person_outline,              'Профайл засах',   () => Navigator.pushNamed(context, '/profile')),
-          _menuItem(c, context, Icons.volunteer_activism_outlined, 'Сайн дурын цаг',  () => Navigator.pushNamed(context, '/my-hours')),
-          _menuItem(c, context, Icons.send_outlined,               'Элсэх хүсэлтүүд', () => Navigator.pushNamed(context, '/my-requests')),
-          _menuItem(c, context, Icons.star_outline_rounded,        'Миний үнэлгээ',    () => Navigator.pushNamed(context, '/my-reviews')),
-          _menuItem(c, context, Icons.lock_outline,                'Нууц үг солих',    () => Navigator.pushNamed(context, '/change-password')),
-          _menuItem(c, context, Icons.palette_outlined,            'Загвар солих',     () => _showThemePicker(context, tp)),
-          if (auth.isClubAdmin)
-            _menuItem(c, context, Icons.admin_panel_settings_outlined, 'Клубын админ самбар',
-              () => Navigator.pushNamed(context, '/admin'), color: c.cyan),
-          if (auth.isSuperAdmin)
-            _menuItem(c, context, Icons.shield_outlined, 'Супер админ самбар',
-              () => Navigator.pushNamed(context, '/super-admin'), color: c.cyan),
-          const SizedBox(height: 8),
-          Divider(color: c.border.withOpacity(0.3)),
-          const SizedBox(height: 8),
-          _menuItem(c, context, Icons.logout, 'Гарах', () async {
-            await auth.logout();
-            if (context.mounted) Navigator.pushReplacementNamed(context, '/login');
-          }, color: c.coral),
-        ],
-      ),
+        ))),
+        _menuItem(c, context, Icons.lock_outline,                'Нууц үг солих',   () => Navigator.pushNamed(context, '/change-password')),
+        _menuItem(c, context, Icons.palette_outlined,            'Загвар солих',    () => _showThemePicker(context, tp)),
+        _menuItem(c, context, Icons.wallpaper_outlined,          'Дэвсгэр солих',   () => _showBackgroundPicker(context, tp)),
+        if (auth.isClubAdmin)
+          _menuItem(c, context, Icons.admin_panel_settings_outlined, 'Клубын админ самбар',
+            () => Navigator.pushNamed(context, '/admin'), color: c.cyan),
+        if (auth.isSuperAdmin)
+          _menuItem(c, context, Icons.shield_outlined, 'Супер админ самбар',
+            () => Navigator.pushNamed(context, '/super-admin'), color: c.cyan),
+        const SizedBox(height: 8),
+        Divider(color: c.border.withOpacity(0.3)),
+        const SizedBox(height: 8),
+        _menuItem(c, context, Icons.logout, 'Гарах', () async {
+          await auth.logout();
+          if (context.mounted) Navigator.pushReplacementNamed(context, '/login');
+        }, color: c.coral),
+      ]),
     );
   }
 
@@ -2026,29 +2253,147 @@ class _ProfileTab extends StatelessWidget {
       VoidCallback onTap, {Color? color}) {
     final itemColor = color ?? c.primary;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Container(
-        decoration: BoxDecoration(color: c.bgCard, borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: c.border.withOpacity(0.3))),
-        child: ListTile(
-          leading: Container(width: 36, height: 36,
-            decoration: BoxDecoration(color: itemColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: itemColor, size: 20)),
-          title: Text(label, style: TextStyle(fontSize: 14, color: color != null ? color : c.textPrimary, fontWeight: FontWeight.w500)),
-          trailing: (color == null || color == c.cyan) ? Icon(Icons.chevron_right, color: c.textMuted, size: 18) : null,
-          onTap: onTap,
+      padding: const EdgeInsets.only(bottom: 10),
+      child: LiquidGlassCard(
+        radius: 14,
+        blur: 18,
+        tintOpacity: 0.10,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(children: [
+            Container(width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: itemColor.withOpacity(0.16),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: itemColor.withOpacity(0.25))),
+              child: Icon(icon, color: itemColor, size: 20)),
+            const SizedBox(width: 12),
+            Expanded(child: Text(label,
+              style: TextStyle(
+                fontSize: 14,
+                color: color ?? c.textPrimary,
+                fontWeight: FontWeight.w600))),
+            if (color == null || color == c.cyan)
+              Icon(Icons.chevron_right, color: c.textMuted, size: 18),
+          ]),
         ),
       ),
     );
   }
 
   void _showThemePicker(BuildContext context, ThemeProvider tp) {
-    showModalBottomSheet(
-      context: context, isScrollControlled: true, useSafeArea: true,
+    showModalBottomSheet(context: context, isScrollControlled: true, useSafeArea: true,
       backgroundColor: Colors.transparent,
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8, maxWidth: double.infinity),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => ChangeNotifierProvider.value(value: tp, child: const _ThemePickerSheet()),
+      builder: (_) => ChangeNotifierProvider.value(value: tp, child: const _ThemePickerSheet()));
+  }
+
+  void _showBackgroundPicker(BuildContext context, ThemeProvider tp) {
+    final bg = context.read<BackgroundProvider>();
+    showModalBottomSheet(context: context, isScrollControlled: true, useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85, maxWidth: double.infinity),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: tp),
+          ChangeNotifierProvider.value(value: bg),
+        ],
+        child: const _BackgroundPickerSheet(),
+      ));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// BACKGROUND PICKER SHEET — 10 preset
+// ═══════════════════════════════════════════════════════════
+class _BackgroundPickerSheet extends StatelessWidget {
+  const _BackgroundPickerSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final c  = context.watch<ThemeProvider>().colors;
+    final bg = context.watch<BackgroundProvider>();
+    return Container(
+      decoration: BoxDecoration(
+        color: c.bgCard,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 14),
+          decoration: BoxDecoration(color: c.border, borderRadius: BorderRadius.circular(2))),
+        Row(children: [
+          Icon(Icons.wallpaper_rounded, color: c.primary, size: 22),
+          const SizedBox(width: 10),
+          Text('Дэвсгэр сонгох',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.textPrimary)),
+        ]),
+        const SizedBox(height: 16),
+        Flexible(
+          child: GridView.builder(
+            shrinkWrap: true,
+            padding: const EdgeInsets.only(bottom: 8),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 0.7,
+            ),
+            itemCount: kBgPresets.length,
+            itemBuilder: (_, i) {
+              final p = kBgPresets[i];
+              final isSelected = bg.key == p.key;
+              return GestureDetector(
+                onTap: () => bg.setBackground(p.key),
+                child: Stack(children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: p.gradient,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isSelected ? c.primary : c.border.withOpacity(0.3),
+                        width: isSelected ? 2.5 : 1),
+                      boxShadow: isSelected
+                          ? [BoxShadow(color: c.primary.withOpacity(0.4), blurRadius: 12)]
+                          : null,
+                    ),
+                  ),
+                  if (p.hasStars)
+                    const Positioned.fill(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.all(Radius.circular(14)),
+                        child: StarryOverlay(starCount: 30),
+                      ),
+                    ),
+                  Positioned(
+                    left: 0, right: 0, bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.35),
+                        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(13)),
+                      ),
+                      child: Text(p.name,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  if (isSelected)
+                    Positioned(top: 6, right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(color: c.primary, shape: BoxShape.circle),
+                        child: const Icon(Icons.check_rounded, color: Colors.white, size: 14)))
+                ]),
+              );
+            },
+          ),
+        ),
+      ]),
     );
   }
 }

@@ -2,10 +2,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/theme_provider.dart';
 import '../../models/models.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/theme_and_constants.dart';
 import '../../widgets/common_widgets.dart';
+import '../student/my_profile_screen.dart' show AvatarWidget;
 
 // ✅ null-safe helper: нэрний эхний үсэг авах
 String _initial(dynamic name) {
@@ -24,57 +26,35 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
 
   void _goToTab(int index) => setState(() => _selectedIndex = index);
 
+  static const _navItems = [
+    PillNavItem(icon: Icons.home_outlined,     selectedIcon: Icons.home_rounded,     label: 'Нүүр'),
+    PillNavItem(icon: Icons.groups_outlined,   selectedIcon: Icons.groups_rounded,   label: 'Клубүүд'),
+    PillNavItem(icon: Icons.people_outline,    selectedIcon: Icons.people_rounded,   label: 'Хэрэглэгчид'),
+    PillNavItem(icon: Icons.schedule_outlined, selectedIcon: Icons.schedule_rounded, label: 'Цаг'),
+    PillNavItem(icon: Icons.person_outline,    selectedIcon: Icons.person_rounded,   label: 'Профайл'),
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final c = context.watch<ThemeProvider>().colors;
     final pages = [
       _DashboardTab(onTabChange: _goToTab),
       const _ManageClubsTab(),
       const _ManageUsersTab(),
-      const _RequestsTab(),
+      const _ManageEventsTab(),
+      const _ProfileTab(),
     ];
     return Scaffold(
       appBar: AppBar(
         title: const Text('Супер админ'),
         automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Гарах',
-            onPressed: () async {
-              await context.read<AuthProvider>().logout();
-              if (context.mounted) {
-                Navigator.pushReplacementNamed(context, '/login');
-              }
-            },
-          ),
-        ],
       ),
       body: pages[_selectedIndex],
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: PillNavBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.groups_outlined),
-            selectedIcon: Icon(Icons.groups),
-            label: 'Клубүүд',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people),
-            label: 'Хэрэглэгчид',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.inbox_outlined),
-            selectedIcon: Icon(Icons.inbox),
-            label: 'Хүсэлтүүд',
-          ),
-        ],
+        onTap: (i) => setState(() => _selectedIndex = i),
+        items: _navItems,
+        colors: c,
       ),
     );
   }
@@ -473,7 +453,7 @@ class _ManageClubsTabState extends State<_ManageClubsTab> {
                 AppTextField(controller: nameCtrl, label: 'Клубын нэр'),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
-                  value: cat,
+                  initialValue: cat,
                   decoration: const InputDecoration(labelText: 'Ангилал'),
                   items: const [
                     DropdownMenuItem(value: 'professional', child: Text('Мэргэжлийн')),
@@ -861,6 +841,474 @@ class _RequestsTabState extends State<_RequestsTab> {
                 );
               },
             ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────
+// Арга хэмжээ удирдах tab — super_admin цаг олгох
+// ─────────────────────────────────────────
+class _ManageEventsTab extends StatefulWidget {
+  const _ManageEventsTab();
+  @override
+  State<_ManageEventsTab> createState() => _ManageEventsTabState();
+}
+
+class _ManageEventsTabState extends State<_ManageEventsTab> {
+  final _adminService = AdminService();
+  List<Map<String, dynamic>> _events = [];
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final events = await _adminService.getAllEvents();
+    if (mounted) setState(() { _events = events; _loading = false; });
+  }
+
+  String _fmtDate(String? iso) {
+    if (iso == null) return '';
+    final d = DateTime.tryParse(iso)?.toLocal();
+    if (d == null) return '';
+    return '${d.year}.${d.month.toString().padLeft(2,'0')}.${d.day.toString().padLeft(2,'0')}';
+  }
+
+  Future<void> _sendHours(Map<String, dynamic> event, double hours) async {
+    await _adminService.updateEventHours(event['id'], hours);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${event['title']} → $hours цаг олголоо'),
+        backgroundColor: AppColors.teal,
+      ),
+    );
+    _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const LoadingView();
+    if (_events.isEmpty) {
+      return const EmptyState(
+        message: 'Арга хэмжээ байхгүй байна',
+        icon: Icons.event_outlined,
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _events.length,
+        itemBuilder: (_, i) {
+          final e = _events[i];
+          return _EventHoursCard(
+            event: e,
+            dateStr: _fmtDate(e['event_date']),
+            onSend: (h) => _sendHours(e, h),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _EventHoursCard extends StatelessWidget {
+  final Map<String, dynamic> event;
+  final String dateStr;
+  final Future<void> Function(double hours) onSend;
+  const _EventHoursCard({
+    required this.event,
+    required this.dateStr,
+    required this.onSend,
+  });
+
+  Future<void> _openHoursDialog(BuildContext context) async {
+    final ctrl = TextEditingController(text: (event['hours'] ?? 0).toString());
+    final result = await showDialog<double>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(event['title'] ?? '',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text(event['clubs']?['name'] ?? '',
+              style: const TextStyle(fontSize: 12, color: AppColors.textMuted, fontWeight: FontWeight.w400)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Энэхүү арга хэмжээнд хэдэн цаг олгох вэ?',
+              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                hintText: 'Цагийн тоо',
+                prefixIcon: Icon(Icons.schedule_outlined, size: 18),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Цуцлах'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              final h = double.tryParse(ctrl.text.trim());
+              if (h == null || h < 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Зөв цаг оруулна уу')),
+                );
+                return;
+              }
+              Navigator.pop(context, h);
+            },
+            icon: const Icon(Icons.send_rounded, size: 16),
+            label: const Text('Илгээх'),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal),
+          ),
+        ],
+      ),
+    );
+    if (result != null) await onSend(result);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final clubName = (event['clubs']?['name'] ?? '').toString();
+    final currentHours = (event['hours'] ?? 0).toString();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        leading: Container(
+          width: 42, height: 42,
+          decoration: BoxDecoration(
+            color: AppColors.tealLight,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.event_rounded, color: AppColors.teal, size: 22),
+        ),
+        title: Text(
+          event['title'] ?? '',
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Row(
+            children: [
+              const Icon(Icons.groups_outlined, size: 12, color: AppColors.textMuted),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  clubName,
+                  style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (dateStr.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                const Icon(Icons.calendar_today_outlined, size: 11, color: AppColors.textMuted),
+                const SizedBox(width: 3),
+                Text(dateStr, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+              ],
+            ],
+          ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.tealLight,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '$currentHours ц',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.teal,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              tooltip: 'Цаг олгох',
+              icon: const Icon(Icons.schedule_send_rounded, color: AppColors.teal),
+              onPressed: () => _openHoursDialog(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────
+// Профайл tab — super_admin өөрийн профайл
+// ─────────────────────────────────────────
+class _ProfileTab extends StatefulWidget {
+  const _ProfileTab();
+  @override
+  State<_ProfileTab> createState() => _ProfileTabState();
+}
+
+class _ProfileTabState extends State<_ProfileTab> {
+  int _userPending = 0;
+  int _adminPending = 0;
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _loadCounts(); }
+
+  Future<void> _loadCounts() async {
+    final res = await JoinRequestService().getAllPendingRequests();
+    int u = 0, a = 0;
+    for (final r in res) {
+      final role = (r['users']?['role'] ?? '').toString();
+      if (role == 'club_admin') {
+        a++;
+      } else {
+        u++;
+      }
+    }
+    if (mounted) setState(() { _userPending = u; _adminPending = a; _loading = false; });
+  }
+
+  void _openFiltered(String roleFilter, String title) async {
+    final tp = context.read<ThemeProvider>();
+    await Navigator.push(context, MaterialPageRoute(
+      builder: (_) => ChangeNotifierProvider.value(
+        value: tp,
+        child: _FilteredRequestsScreen(roleFilter: roleFilter, title: title),
+      ),
+    ));
+    _loadCounts();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth    = context.watch<AuthProvider>();
+    final c       = context.watch<ThemeProvider>().colors;
+    final profile = auth.profile;
+    final name    = (profile?['full_name'] ?? '').toString();
+    final email   = (profile?['email'] ?? auth.user?.email ?? '').toString();
+    final phone   = (profile?['phone'] ?? '').toString();
+    final avatar  = profile?['avatar_url'] as String?;
+    final initial = name.isNotEmpty ? name[0] : '?';
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      child: Column(children: [
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: () => Navigator.pushNamed(context, '/profile'),
+          child: Stack(children: [
+            AvatarWidget(avatarUrl: avatar, initial: initial, c: c, size: 88),
+            Positioned(bottom: 0, right: 0,
+              child: Container(width: 26, height: 26,
+                decoration: BoxDecoration(
+                  color: c.primary, shape: BoxShape.circle,
+                  border: Border.all(color: c.bgDark, width: 2)),
+                child: const Icon(Icons.edit_rounded, size: 13, color: Colors.white))),
+          ]),
+        ),
+        const SizedBox(height: 14),
+        Text(name.isEmpty ? 'Супер админ' : name,
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: c.textPrimary)),
+        const SizedBox(height: 4),
+        if (email.isNotEmpty)
+          Text(email, style: TextStyle(color: c.textSecondary, fontSize: 13)),
+        if (phone.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(phone, style: TextStyle(color: c.textMuted, fontSize: 12)),
+        ],
+        const SizedBox(height: 24),
+
+        _menuItem(c, Icons.person_outline, 'Профайл засах', null,
+          () => Navigator.pushNamed(context, '/profile')),
+        _menuItem(
+          c, Icons.group_outlined, 'Хэрэглэгчдээс ирсэн хүсэлт',
+          _loading ? null : _userPending,
+          () => _openFiltered('student', 'Хэрэглэгчдээс ирсэн хүсэлт'),
+        ),
+        _menuItem(
+          c, Icons.admin_panel_settings_outlined, 'Клубын тэргүүнээс ирсэн хүсэлт',
+          _loading ? null : _adminPending,
+          () => _openFiltered('club_admin', 'Клубын тэргүүнээс ирсэн хүсэлт'),
+        ),
+        _menuItem(c, Icons.lock_outline, 'Нууц үг солих', null,
+          () => Navigator.pushNamed(context, '/change-password')),
+        const SizedBox(height: 8),
+        Divider(color: c.border.withOpacity(0.3)),
+        const SizedBox(height: 8),
+        _menuItem(c, Icons.logout, 'Гарах', null, () async {
+          await auth.logout();
+          if (mounted && context.mounted) {
+            Navigator.pushReplacementNamed(context, '/login');
+          }
+        }, color: c.coral),
+      ]),
+    );
+  }
+
+  Widget _menuItem(ThemeColors c, IconData icon, String label, int? badge,
+      VoidCallback onTap, {Color? color}) {
+    final itemColor = color ?? c.primary;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: LiquidGlassCard(
+        radius: 14,
+        blur: 18,
+        tintOpacity: 0.10,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(children: [
+            Container(width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: itemColor.withOpacity(0.16),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: itemColor.withOpacity(0.25))),
+              child: Icon(icon, color: itemColor, size: 20)),
+            const SizedBox(width: 12),
+            Expanded(child: Text(label,
+              style: TextStyle(
+                fontSize: 14,
+                color: color ?? c.textPrimary,
+                fontWeight: FontWeight.w600))),
+            if (badge != null && badge > 0) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: c.coral,
+                  borderRadius: BorderRadius.circular(10)),
+                child: Text('$badge',
+                  style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w700)),
+              ),
+              const SizedBox(width: 6),
+            ],
+            if (color == null)
+              Icon(Icons.chevron_right, color: c.textMuted, size: 18),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────
+// Filtered requests screen — role-аар шүүсэн хүсэлт
+// ─────────────────────────────────────────
+class _FilteredRequestsScreen extends StatefulWidget {
+  final String roleFilter;
+  final String title;
+  const _FilteredRequestsScreen({required this.roleFilter, required this.title});
+
+  @override
+  State<_FilteredRequestsScreen> createState() => _FilteredRequestsScreenState();
+}
+
+class _FilteredRequestsScreenState extends State<_FilteredRequestsScreen> {
+  final _reqService = JoinRequestService();
+  List<Map<String, dynamic>> _requests = [];
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final all = await _reqService.getAllPendingRequests();
+    final filtered = all.where((r) {
+      final role = (r['users']?['role'] ?? 'student').toString();
+      if (widget.roleFilter == 'club_admin') return role == 'club_admin';
+      return role != 'club_admin';
+    }).toList();
+    if (mounted) setState(() { _requests = filtered; _loading = false; });
+  }
+
+  Future<void> _approve(String id) async { await _reqService.approveRequest(id); _load(); }
+  Future<void> _reject(String id) async { await _reqService.rejectRequest(id); _load(); }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.title)),
+      body: _loading ? const LoadingView() : RefreshIndicator(
+        onRefresh: _load,
+        child: _requests.isEmpty
+            ? const EmptyState(message: 'Хүлээгдэж буй хүсэлт байхгүй', icon: Icons.check_circle_outline)
+            : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _requests.length,
+                itemBuilder: (_, i) {
+                  final r = _requests[i];
+                  final user = r['users'] as Map<String, dynamic>? ?? {};
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          CircleAvatar(radius: 18, backgroundColor: AppColors.primaryLight,
+                            child: Text(_initial(user['full_name']),
+                              style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 14))),
+                          const SizedBox(width: 10),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(user['full_name'] ?? 'Нэргүй',
+                              style: const TextStyle(fontWeight: FontWeight.w600)),
+                            Text('${user['student_code'] ?? ''}  ·  ${r['clubs']?['name'] ?? ''}',
+                              style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                          ])),
+                        ]),
+                        if (r['message'] != null && (r['message'] as String).isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Container(padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface, borderRadius: BorderRadius.circular(8)),
+                            child: Text(r['message'],
+                              style: const TextStyle(fontSize: 13, color: AppColors.textMuted))),
+                        ],
+                        const SizedBox(height: 10),
+                        Row(children: [
+                          Expanded(child: OutlinedButton.icon(
+                            onPressed: () => _reject(r['id']),
+                            icon: const Icon(Icons.close, size: 16),
+                            label: const Text('Татгалзах'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                              side: const BorderSide(color: Colors.red)))),
+                          const SizedBox(width: 8),
+                          Expanded(child: ElevatedButton.icon(
+                            onPressed: () => _approve(r['id']),
+                            icon: const Icon(Icons.check, size: 16),
+                            label: const Text('Батлах'),
+                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal))),
+                        ]),
+                      ]),
+                    ),
+                  );
+                }),
+      ),
     );
   }
 }
